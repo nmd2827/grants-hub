@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" href="data:," />
+    <title>Grants Hub</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --navy: #0b1e3e;
+        --navy-2: #12305f;
+        --gold: #b98a1c;
+        --gold-bright: #d9a92c;
+        --bg: #f6f3ec;
+        --surface: #ffffff;
+        --ink: #1c2432;
+        --ink-soft: #4a5468;
+        --line: #ddd5c2;
+        --green: #1e6b3c;
+        --green-bg: #e2efe4;
+        --amber: #8a5a00;
+        --amber-bg: #f7ecd2;
+        --red: #9c2b1d;
+        --red-bg: #f6e3df;
+        --gray-bg: #e8e6e1;
+        --gray-ink: #565d6b;
+        --shadow: 0 1px 2px rgba(11, 30, 62, .08), 0 4px 14px rgba(11, 30, 62, .06);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --navy: #081426;
+          --navy-2: #10294f;
+          --gold: #d9a92c;
+          --gold-bright: #eec95c;
+          --bg: #0a1322;
+          --surface: #122139;
+          --ink: #eef1f6;
+          --ink-soft: #a9b4c6;
+          --line: #2a3c5c;
+          --green: #7fc793;
+          --green-bg: #173626;
+          --amber: #eec95c;
+          --amber-bg: #3a2f10;
+          --red: #f0a294;
+          --red-bg: #40201b;
+          --gray-bg: #22314d;
+          --gray-ink: #a9b4c6;
+          --shadow: 0 1px 2px rgba(0,0,0,.35), 0 4px 14px rgba(0,0,0,.3);
+        }
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.45;
+      }
+      .wrap { max-width: 880px; margin: 0 auto; padding: 0 16px 48px; }
+
+      /* ---------- Status banner ---------- */
+      .banner {
+        background: var(--navy);
+        color: #f2ead2;
+        margin: 0 -16px;
+        padding: 22px 16px 20px;
+        border-bottom: 4px solid var(--gold-bright);
+      }
+      .banner-inner { max-width: 880px; margin: 0 auto; }
+      .banner h1 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 1.55rem;
+        line-height: 1.15;
+        margin: 0 0 4px;
+        color: #ffffff;
+        letter-spacing: .01em;
+      }
+      .banner .sub { margin: 0 0 16px; color: #c9d2e4; font-size: .92rem; max-width: 56ch; }
+      .status-grid { display: grid; gap: 10px; }
+      @media (min-width: 640px) { .status-grid { grid-template-columns: repeat(3, 1fr); } }
+      .status-item {
+        background: var(--navy-2);
+        border: 1px solid rgba(217, 169, 44, .45);
+        border-radius: 10px;
+        padding: 12px 14px;
+      }
+      .status-item .k {
+        font-size: .68rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+        color: var(--gold-bright); margin: 0 0 5px;
+      }
+      .status-item .v { margin: 0; font-size: .9rem; color: #f4f6fa; }
+      .status-item .v strong { color: #ffffff; }
+      .status-item .v a { color: var(--gold-bright); }
+      .share-cta {
+        display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+        margin-top: 14px; background: #ffffff; color: var(--navy);
+        border-radius: 10px; padding: 12px 14px; text-decoration: none;
+      }
+      .share-cta .share-cta-main { flex: 1 1 220px; }
+      .share-cta .share-cta-title { display: block; font-weight: 800; font-size: 1rem; line-height: 1.25; }
+      .share-cta .share-cta-sub { display: block; font-size: .84rem; color: #4a5468; margin-top: 2px; }
+      .share-cta .share-cta-arrow {
+        background: var(--navy); color: #ffd968; font-weight: 800; font-size: .88rem;
+        border-radius: 8px; padding: 10px 14px; white-space: nowrap;
+      }
+
+      /* ---------- Parent links list ---------- */
+      .parent-links {
+        margin-top: 20px; background: var(--surface); border: 2px solid var(--gold-bright);
+        border-radius: 12px; padding: 18px 16px 14px; box-shadow: var(--shadow);
+      }
+      .parent-links h2 { font-family: Georgia, "Times New Roman", serif; font-size: 1.25rem; margin: 0 0 6px; }
+      .parent-links .intro { margin: 0 0 12px; color: var(--ink-soft); font-size: .92rem; max-width: 62ch; }
+      .parent-links .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 6px; }
+      .copybtn {
+        appearance: none; border: 0; cursor: pointer; min-height: 44px;
+        background: var(--navy); color: #fff; font-weight: 700; font-size: .92rem;
+        border-radius: 8px; padding: 10px 16px;
+      }
+      @media (prefers-color-scheme: dark) { .copybtn { background: var(--gold-bright); color: #14213d; } }
+      .copybtn:active { opacity: .75; }
+      .copy-note { font-size: .85rem; color: var(--ink-soft); }
+      .copy-status { font-size: .85rem; font-weight: 700; color: var(--green); min-height: 1.2em; margin: 4px 0 0; }
+      .linklist { margin: 10px 0 4px; padding-left: 22px; }
+      .linklist li { margin-bottom: 10px; font-size: .92rem; }
+      .linklist .ll-name { font-weight: 700; }
+      .linklist .ll-meta { color: var(--ink-soft); font-size: .85rem; display: block; }
+      .linklist a { color: var(--navy); font-weight: 600; word-break: break-all; }
+      @media (prefers-color-scheme: dark) { .linklist a { color: var(--gold-bright); } }
+      .linklist .ll-nolink { color: var(--ink-soft); font-style: italic; font-size: .85rem; }
+
+      /* ---------- Next up strip ---------- */
+      .nextup { margin: 20px 0 4px; }
+      .nextup h2, .section-head h2 {
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 1.15rem; margin: 0 0 10px; color: var(--ink);
+      }
+      .nextup-row { display: flex; flex-wrap: wrap; gap: 8px; }
+      .nextup-chip {
+        background: var(--surface); border: 1px solid var(--line); border-radius: 999px;
+        padding: 7px 12px; font-size: .85rem; box-shadow: var(--shadow);
+        display: inline-flex; gap: 7px; align-items: baseline; min-height: 36px; align-items: center;
+      }
+      .nextup-chip b { color: var(--navy); font-weight: 700; }
+      @media (prefers-color-scheme: dark) { .nextup-chip b { color: var(--gold-bright); } }
+      .nextup-chip .when { color: var(--red); font-weight: 700; white-space: nowrap; }
+
+      /* ---------- Filters ---------- */
+      .filters {
+        position: sticky; top: 0; z-index: 20;
+        background: var(--bg);
+        padding: 14px 0 10px;
+        margin: 8px -4px 0;
+      }
+      .filters-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 4px; }
+      .fbtn {
+        appearance: none; border: 1px solid var(--line); background: var(--surface);
+        color: var(--ink); border-radius: 999px; padding: 9px 14px; min-height: 38px;
+        font-size: .88rem; font-weight: 600; cursor: pointer;
+      }
+      .fbtn[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: #fff; }
+      @media (prefers-color-scheme: dark) {
+        .fbtn[aria-pressed="true"] { background: var(--gold-bright); border-color: var(--gold-bright); color: #14213d; }
+      }
+      .legend { font-size: .82rem; color: var(--ink-soft); margin: 10px 4px 0; }
+      .legend b { color: var(--ink); }
+
+      /* ---------- Sections & cards ---------- */
+      .section-head { margin: 26px 0 4px; }
+      .section-head p { margin: 0; color: var(--ink-soft); font-size: .9rem; max-width: 62ch; }
+      .cards { display: grid; gap: 12px; margin-top: 12px; }
+      @media (min-width: 700px) { .cards { grid-template-columns: 1fr 1fr; } }
+      .card {
+        background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+        padding: 16px; box-shadow: var(--shadow);
+        display: flex; flex-direction: column; gap: 8px;
+      }
+      .card .funder { font-size: .78rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--gold); margin: 0; }
+      @media (prefers-color-scheme: dark) { .card .funder { color: var(--gold-bright); } }
+      .card h3 { font-family: Georgia, "Times New Roman", serif; font-size: 1.12rem; line-height: 1.25; margin: 0; }
+      .amount { font-size: 1.3rem; font-weight: 800; color: var(--navy); letter-spacing: -.01em; }
+      @media (prefers-color-scheme: dark) { .amount { color: #fff; } }
+      .amount small { font-size: .8rem; font-weight: 600; color: var(--ink-soft); }
+      .badges { display: flex; flex-wrap: wrap; gap: 6px; }
+      .badge {
+        font-size: .7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+        border-radius: 5px; padding: 4px 8px; line-height: 1.2;
+      }
+      .badge.route-direct { background: var(--navy); color: #ffd968; }
+      .badge.route-boosters { background: var(--gold-bright); color: #231a02; }
+      .badge.route-other { background: var(--gray-bg); color: var(--gray-ink); }
+      .badge.st-open { background: var(--green-bg); color: var(--green); }
+      .badge.st-submitted { background: var(--navy); color: #fff; }
+      .badge.st-progress { background: var(--amber-bg); color: var(--amber); }
+      .badge.st-watch { background: var(--gray-bg); color: var(--gray-ink); }
+      .badge.st-closed { background: var(--red-bg); color: var(--red); }
+      .deadline { font-size: .92rem; margin: 0; }
+      .deadline b { font-weight: 700; }
+      .days { display: inline-block; margin-left: 6px; font-size: .78rem; font-weight: 700; color: var(--red); background: var(--red-bg); border-radius: 999px; padding: 2px 8px; vertical-align: 1px; white-space: nowrap; }
+      .days.later { color: var(--amber); background: var(--amber-bg); }
+      .note { font-size: .9rem; color: var(--ink-soft); margin: 0; }
+      .note b { color: var(--ink); }
+      .detail { font-size: .86rem; color: var(--ink-soft); margin: 0; border-top: 1px dashed var(--line); padding-top: 8px; }
+      .detail b { color: var(--ink); }
+      .card .links { margin-top: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+      .card a.apply {
+        display: inline-flex; align-items: center; gap: 6px;
+        min-height: 38px; padding: 8px 14px;
+        border: 1.5px solid var(--navy); border-radius: 8px;
+        color: var(--navy); font-weight: 700; font-size: .88rem; text-decoration: none;
+      }
+      @media (prefers-color-scheme: dark) { .card a.apply { border-color: var(--gold-bright); color: var(--gold-bright); } }
+      .card a.apply:active { opacity: .7; }
+      .card .nolink { margin-top: auto; font-size: .82rem; color: var(--ink-soft); font-style: italic; }
+      a.inline { color: var(--navy); font-weight: 600; }
+      @media (prefers-color-scheme: dark) { a.inline { color: var(--gold-bright); } }
+      .empty { display: none; padding: 28px 16px; text-align: center; color: var(--ink-soft); border: 1px dashed var(--line); border-radius: 12px; margin-top: 12px; }
+
+      /* ---------- Not pursuing ---------- */
+      details.notpursuing {
+        margin-top: 34px; background: var(--surface); border: 1px solid var(--line);
+        border-radius: 12px; padding: 4px 16px;
+      }
+      details.notpursuing summary {
+        cursor: pointer; font-weight: 700; padding: 12px 0; min-height: 44px;
+        display: flex; align-items: center; font-family: Georgia, serif; font-size: 1.02rem;
+      }
+      details.notpursuing ul { margin: 0 0 14px; padding-left: 20px; color: var(--ink-soft); font-size: .9rem; }
+      details.notpursuing li { margin-bottom: 6px; }
+      details.notpursuing b { color: var(--ink); }
+
+      footer { margin-top: 30px; border-top: 1px solid var(--line); padding-top: 14px; color: var(--ink-soft); font-size: .85rem; }
+      footer p { margin: 0 0 6px; }
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+
+      <!-- Status banner -->
+      <header class="banner">
+        <div class="banner-inner">
+          <h1>Grants for the Marching Eagles</h1>
+          <p class="sub">Every grant found for the Kennedy band program — what Nick or the school can apply for directly, and what has to go through the boosters.</p>
+          <div class="status-grid">
+            <div class="status-item">
+              <p class="k">Submitted</p>
+              <p class="v"><strong>NAMM BCME + Dinah Gretsch Impact Award</strong> — in Fri Nov 13, 2026. Winners announced April 2027. Contact: <a href="mailto:bethanyg@namm.org">bethanyg@namm.org</a></p>
+            </div>
+            <div class="status-item">
+              <p class="k">In progress</p>
+              <p class="v"><strong>Dream Team Grant</strong> — form filled but <strong>not submitted</strong>. County (required) and the two essays are still blank. Closes Nov 30.</p>
+            </div>
+            <div class="status-item">
+              <p class="k">Most urgent</p>
+              <p class="v"><strong>Walmart Spark Good</strong> and <strong>Dream Team</strong> both close <strong>Nov 30, 2026</strong>; <strong>CT Humanities Mini Grants</strong> close Dec 1.</p>
+            </div>
+          </div>
+          <a class="share-cta" href="#all-grant-links">
+            <span class="share-cta-main">
+              <span class="share-cta-title">All grant links — for parents</span>
+              <span class="share-cta-sub">One running list of every grant link in this hub. Tap to open it, then copy the whole list to send to parents anytime.</span>
+            </span>
+            <span class="share-cta-arrow">Open the list ↓</span>
+          </a>
+        </div>
+      </header>
+
+      <!-- All grant links — share with parents -->
+      <section class="parent-links" id="all-grant-links" aria-label="All grant links to share with parents">
+        <h2>All grant links — share with parents</h2>
+        <p class="intro">This is the running list of every official grant link in the hub — <strong id="linkCount">…</strong> — kept in the same order as the cards below and updated whenever a new grant is added. Use <strong>Copy list for parents</strong> to paste the whole list into ParentSquare, BAND, or email, or send parents to this section at the top of the hub.</p>
+        <div class="actions">
+          <button class="copybtn" id="copyLinksBtn" type="button">Copy list for parents</button>
+          <span class="copy-note">Copies grant names + official links as plain text.</span>
+        </div>
+        <p class="copy-status" id="copyStatus" role="status" aria-live="polite"></p>
+        <ol class="linklist" id="linkList"></ol>
+        <p class="intro" style="margin-bottom:2px;">Full details for each grant — amount, who applies, and what&rsquo;s still needed — are in the cards below.</p>
+      </section>
+
+      <!-- Next up -->
+      <section class="nextup" aria-label="Next deadlines">
+        <h2>Next up</h2>
+        <div class="nextup-row">
+          <span class="nextup-chip"><b>Walmart Spark Good</b><span class="when">Nov 30</span></span>
+          <span class="nextup-chip"><b>Dream Team</b><span class="when">Nov 30</span></span>
+          <span class="nextup-chip"><b>CT Humanities Mini</b><span class="when">Dec 1</span></span>
+          <span class="nextup-chip"><b>Classics for Kids</b><span class="when">Dec 31</span></span>
+          <span class="nextup-chip"><b>Mockingbird inquiry</b><span class="when">Jan 15</span></span>
+        </div>
+      </section>
+
+      <!-- Filters -->
+      <nav class="filters" aria-label="Filter grants">
+        <div class="filters-row" id="filterRow">
+          <button class="fbtn" data-filter="all" aria-pressed="true">All</button>
+          <button class="fbtn" data-filter="direct" aria-pressed="false">No boosters needed</button>
+          <button class="fbtn" data-filter="boosters" aria-pressed="false">Boosters needed</button>
+          <button class="fbtn" data-filter="soon" aria-pressed="false">Due soon</button>
+          <button class="fbtn" data-filter="progress" aria-pressed="false">Submitted &amp; in progress</button>
+          <button class="fbtn" data-filter="watch" aria-pressed="false">Watch list</button>
+        </div>
+        <p class="legend"><b>Direct</b> = the school or Nick applies, no 501(c)(3) needed. <b>Boosters</b> = the JFK Eagles Band Booster Club (501(c)(3)) must be the applicant.</p>
+      </nav>
+
+      <!-- Direct -->
+      <section id="sec-direct">
+        <div class="section-head">
+          <h2>Apply directly — no boosters needed</h2>
+          <p>The school, or Nick as a teacher, can apply for these without the booster club.</p>
+        </div>
+        <div class="cards" id="cards-direct"></div>
+      </section>
+
+      <!-- Boosters -->
+      <section id="sec-boosters">
+        <div class="section-head">
+          <h2>Boosters, district &amp; partner routes</h2>
+          <p>Most of these go through the JFK Eagles Band Booster Club (501(c)(3)). A few run through the district or a partner arts organization instead — each card's badge shows exactly who applies.</p>
+        </div>
+        <div class="cards" id="cards-boosters"></div>
+      </section>
+
+      <p class="empty" id="emptyMsg">Nothing matches this filter right now.</p>
+
+      <!-- Not pursuing -->
+      <details class="notpursuing">
+        <summary>Not pursuing right now</summary>
+        <ul>
+          <li><b>CMA Foundation Music Teachers of Excellence ($2,500)</b> — 2026 cycle closed; dropped.</li>
+          <li><b>Music for All scholarships ($1,000–$2,000)</b> — for individual students, not the program; closed Oct 18, 2026.</li>
+          <li><b>Chorus America Music Education Partnership Grant (up to $50,000 over 2 years)</b> — deadline Nov 20, 2026, but Connecticut is not eligible in the 2027 cycle (four regions only).</li>
+          <li><b>27 more checked and excluded</b> — out-of-area funders, Canada/UK/Ireland-only, literacy-only, theater-only, and similar non-fits.</li>
+        </ul>
+      </details>
+
+      <footer>
+        <p>Checked 3x a day — new grants appear here as they're found.</p>
+        <p>Last updated Nov 17, 2026 — parent link list added at the top.</p>
+      </footer>
+    </div>
+
+    <script>
+      var AS_OF = new Date(2026, 10, 14); // snapshot date: Nov 14, 2026
+
+      var GRANTS = [
+        /* ---------------- DIRECT ---------------- */
+        { group: "direct", funder: "Walmart / Walmart Foundation", program: "Walmart Spark Good Local Grants",
+          amount: "$250–$5,000", route: "DIRECT", routeClass: "route-direct", status: "Open", statusClass: "st-open",
+          deadline: "Nov 30, 2026", deadlineDate: "2026-11-30", soon: true,
+          note: "Local community grants — a band request (instruments, uniforms, travel) framed as serving the local community. Our facility: Walmart #3548, 910 Wolcott St, Waterbury.",
+          detail: "<b>Still needed to apply:</b> organizational email + who is Primary Owner, an itemized budget totaling the amount requested, and the number of band students served. Needs a Spark Good account and Deed verification first.",
+          link: "https://www.walmart.com/nonprofits", linkLabel: "Spark Good for nonprofits",
+          link2: "https://walmart.org/how-we-give/program-guidelines/spark-good-local-grants-guidelines", link2Label: "Program guidelines" },
+        { group: "direct", funder: "Get Movin'", program: "Dream Team Grant",
+          amount: "$3,500", amountNote: "one school", route: "DIRECT", routeClass: "route-direct", status: "In progress", statusClass: "st-progress",
+          deadline: "Nov 30, 2026, 11:59 PM ET", deadlineDate: "2026-11-30", soon: true, progress: true,
+          note: "Form is filled but <b>not submitted</b> — the County field (required) and the two long-answer essays are still blank. Winner notified Feb 2027.",
+          link: "https://getmovinfundraising.com/dream-team", linkLabel: "Dream Team Grant page" },
+        { group: "direct", funder: "Classics for Kids Foundation", program: "Instrument Matching Grant",
+          amount: "Up to 50%", amountNote: "matching grant on instrument cost", route: "DIRECT", routeClass: "route-direct", status: "Open", statusClass: "st-open",
+          deadline: "Dec 31, 2026", deadlineDate: "2026-12-31", soon: true,
+          note: "Quarterly deadlines: Mar 31 / Jun 30 / Sep 30 / Dec 31. <b>Narrow fit:</b> fine stringed instruments only (violins, violas, cellos, basses, guitars, ukuleles) — limited use for a winds/percussion program.",
+          link: "https://classicsforkids.org/apply-for-a-grant/", linkLabel: "Apply for a grant" },
+        { group: "direct", funder: "NAMM Foundation", program: "NAMM BCME + Dinah Gretsch Impact Award",
+          amount: "Up to $5,000", amountNote: "Impact Award", route: "DIRECT", routeClass: "route-direct", status: "Submitted", statusClass: "st-submitted",
+          deadline: "Was Jan 5, 2027", progress: true,
+          note: "Submitted Fri Nov 13, 2026 — “Thank you!” confirmation, no reference number. For instrument repair, replacing worn supplies, and removing small participation costs. Winners announced April 2027.",
+          detail: "Contact: Bethany Gilbert, <a class='inline' href='mailto:bethanyg@namm.org'>bethanyg@namm.org</a>.",
+          link: "https://nammfoundation.org/programs/bcme-application/", linkLabel: "BCME application page" },
+        { group: "direct", funder: "The Mockingbird Foundation", program: "Competitive Grants, Round 32",
+          amount: "$100–$10,000", route: "DIRECT", routeClass: "route-direct", status: "Open", statusClass: "st-open",
+          deadline: "Initial inquiry due Jan 15, 2027", deadlineDate: "2027-01-15",
+          note: "Explicitly funds instrument repair and purchase. Two-step process: inquiry first, full proposals by invitation only. Extremely competitive — under 1% of inquiries are funded.",
+          link: "https://mbird.org/grants/apply/", linkLabel: "Apply" },
+        { group: "direct", funder: "Recording Academy / GRAMMY Museum", program: "GRAMMY Music Educator Award 2028",
+          amount: "$10,000", amountNote: "honorarium + matching grant for the school program", route: "Nomination", routeClass: "route-other", status: "Open", statusClass: "st-open",
+          deadline: "Nominations through Mar 15, 2027 · applications due Mar 31, 2027", deadlineDate: "2027-03-15",
+          note: "Anyone can nominate, including self-nomination — Nick is eligible. Finalists get $1,000 + matching; semifinalists $500 + matching.",
+          link: "https://www.grammymusicteacher.com", linkLabel: "GRAMMY Music Teacher Award" },
+        { group: "direct", funder: "Ezra Jack Keats Foundation", program: "Mini-Grants",
+          amount: "Up to $500", route: "DIRECT", routeClass: "route-direct", status: "Open", statusClass: "st-open",
+          deadline: "Mar 31, 2027", deadlineDate: "2027-03-31",
+          note: "Public schools only. For creative-expression projects that support or extend the curriculum — a music-history/storytelling project could fit; instruments alone are a stretch.",
+          detail: "Deadline is Mar 31, 2027 per Foundation guidance; one directory lists Sept 15, 2027 — confirm on the official page.",
+          link: "https://www.ezra-jack-keats.org/section/ezra-jack-keats-mini-grants/", linkLabel: "Mini-Grants page" },
+        { group: "direct", funder: "Target", program: "Target Community Engagement Funds",
+          amount: "$1,000–$15,000", route: "DIRECT", routeClass: "route-direct", status: "Watch", statusClass: "st-watch", watch: true,
+          deadline: "Returns Apr 2027",
+          note: "Schools are eligible. Verify details on Target's community giving pages when the cycle reopens.",
+          nolink: "No application link until the cycle reopens." },
+        { group: "direct", funder: "NEA Foundation", program: "Student Success Grants",
+          amount: "$2,500–$5,000", route: "DIRECT", routeClass: "route-direct", status: "Watch", statusClass: "st-watch", watch: true,
+          deadline: "Unclear — treat next window as summer 2027",
+          note: "Requires current NEA membership — Nick's membership status is unverified.",
+          detail: "One directory lists Feb 1, 2027, but the Foundation's own published window is June 15–Sept 15 (the 2026 window has ended). Treat the next window as summer 2027 until verified.",
+          link: "https://www.neafoundation.org/educator-grants-and-fellowships/student-success-grants/", linkLabel: "Student Success Grants" },
+        { group: "direct", funder: "Hungry for Music", program: "Instrument Donations",
+          amount: "In-kind", amountNote: "donated instruments", route: "DIRECT", routeClass: "route-direct", status: "Rolling", statusClass: "st-open",
+          deadline: "Rolling",
+          note: "Donated instruments for public school music teachers. The Title I teacher window reopens Aug 2027.",
+          link: "https://hungryformusic.org", linkLabel: "Hungry for Music" },
+        { group: "direct", funder: "DonorsChoose", program: "DonorsChoose (crowdfunding, not a grant)",
+          amount: "Varies", amountNote: "donor-funded", route: "DIRECT", routeClass: "route-direct", status: "Available", statusClass: "st-open",
+          deadline: "Anytime",
+          note: "Kennedy is already listed. Teachers post a project (instruments, supplies) and donors fund it.",
+          link: "https://www.donorschoose.org/school/john-f-kennedy-high-school/44097", linkLabel: "Kennedy's DonorsChoose page" },
+        { group: "direct", funder: "Mr. Holland's Opus Foundation", program: "Instrument Grants",
+          amount: "In-kind", amountNote: "instruments, no cash", route: "DIRECT", routeClass: "route-direct", status: "Pre-qualification", statusClass: "st-progress",
+          deadline: "None — pre-qualification / invitation",
+          note: "Public schools with 65%+ economically disadvantaged students qualify — Kennedy is at 81.8%, so it clears the bar. The music teacher submits. No open call right now.",
+          detail: "Contact: <a class='inline' href='mailto:applications@mhopus.org'>applications@mhopus.org</a>.",
+          link: "https://mhopus.org/instrument-grants/", linkLabel: "Instrument Grants" },
+        { group: "direct", funder: "Give A Note Foundation", program: "Music Education Innovator Award",
+          amount: "$4,000", route: "DIRECT", routeClass: "route-direct", status: "Watch", statusClass: "st-watch", watch: true,
+          deadline: "2027 dates not yet posted",
+          note: "For music teachers. Verify the 2027 dates on the foundation's site.",
+          link: "https://www.giveanote.org", linkLabel: "Give A Note" },
+
+        /* ---------------- BOOSTERS ---------------- */
+        { group: "boosters", funder: "CT Humanities", program: "Mini Grants",
+          amount: "Up to $2,500", amountNote: "1:1 match required", route: "BOOSTERS", routeClass: "route-boosters", status: "Open", statusClass: "st-open",
+          deadline: "Dec 1, 2026", deadlineDate: "2026-12-01", soon: true,
+          note: "Then Feb 1 / Apr 1 / Jun 1, 2027. Public schools are <b>not</b> directly eligible — the boosters apply. Humanities-framed only: a performance plus a talkback or exhibit counts as humanities; a performance alone counts as arts.",
+          detail: "<b>Must contact CT Humanities staff before applying</b> (<a class='inline' href='mailto:grants@cthumanities.org'>grants@cthumanities.org</a>, <a class='inline' href='tel:+18607859640'>860-785-9640</a>); draft review by Nov 17, 2026. Still to pick: Project Director and Grant Administrator — they cannot be the same person.",
+          link: "https://cthumanities.org/grants/mini-grants/", linkLabel: "Mini Grants" },
+        { group: "boosters", funder: "Connecticut Office of the Arts", program: "Connecticut Arts Endowment Fund",
+          amount: "Varies", route: "Partner org", routeClass: "route-other", status: "Open — not eligible directly", statusClass: "st-open",
+          deadline: "Dec 15, 2026", deadlineDate: "2026-12-15", soon: true,
+          note: "Eligible nonprofit arts organizations only — public schools are not eligible. Listed in case a partner arts organization applies on the program's behalf.",
+          link: "https://portal.ct.gov/decdartsportal/knowledge-base/articles/grants/conn-arts-endowment-fund/how-to-apply", linkLabel: "How to apply" },
+        { group: "boosters", funder: "National Endowment for the Arts", program: "Grants for Arts Projects",
+          amount: "$10,000–$100,000", amountNote: "1:1 match", route: "District / nonprofit", routeClass: "route-other", status: "Closed", statusClass: "st-closed", watch: true,
+          deadline: "FY28 guidelines expected late Dec 2026",
+          note: "Units of state/local government are eligible; requires 5+ years of arts programming. Watch for the new guidelines.",
+          link: "https://www.arts.gov/grants/grants-for-arts-projects", linkLabel: "Grants for Arts Projects" },
+        { group: "boosters", funder: "Connecticut Community Foundation", program: "Arts and Culture Grants",
+          amount: "$5,000–$15,000", route: "BOOSTERS", routeClass: "route-boosters", status: "Watch", statusClass: "st-watch", watch: true,
+          deadline: "Feb 2027 (two cycles a year: Feb + Oct)",
+          note: "Waterbury-based foundation; boosters or a nonprofit partner apply. Exact February date not yet verified.",
+          detail: "Contact: Josh Carey, <a class='inline' href='mailto:jcarey@conncf.org'>jcarey@conncf.org</a>, <a class='inline' href='tel:+12037531315'>203-753-1315</a> x108.",
+          link: "https://conncf.org", linkLabel: "Connecticut Community Foundation" },
+        { group: "boosters", funder: "D'Addario Foundation", program: "D'Addario Foundation Grants",
+          amount: "~$2,500", amountNote: "average grant", route: "BOOSTERS", routeClass: "route-boosters", status: "Watch", statusClass: "st-watch", watch: true,
+          deadline: "Cycle 2 expected Mar 14, 2027 (unverified)",
+          note: "Nonprofits only — the boosters or a fiscal sponsor applies.",
+          link: "https://www.daddariofoundation.org/", linkLabel: "D'Addario Foundation" },
+        { group: "boosters", funder: "George A. & Grace L. Long Foundation", program: "Project Grants",
+          amount: "$2,000–$125,000", route: "BOOSTERS", routeClass: "route-boosters", status: "Watch", statusClass: "st-watch", watch: true,
+          deadline: "Apr 1, 2027", deadlineDate: "2027-04-01",
+          note: "CT nonprofits serving underserved populations. The education focus is out-of-school learning/enrichment and arts access. Administered by Bank of America's CT office.",
+          detail: "Inquiries: <a class='inline' href='mailto:ct.grantmaking@bofa.com'>ct.grantmaking@bofa.com</a>.",
+          link: "https://www.bankofamerica.com/philanthropic/foundation.go", linkLabel: "Bank of America philanthropic foundations" },
+        { group: "boosters", funder: "CT Humanities", program: "Capacity Grants",
+          amount: "Up to $20,000", amountNote: "1:1 match", route: "BOOSTERS", routeClass: "route-boosters", status: "Watch", statusClass: "st-watch", watch: true,
+          deadline: "May 1, 2027", deadlineDate: "2027-05-01",
+          note: "Capacity-building only — planning and assessments. <b>Not</b> for instruments or travel.",
+          link: "https://cthumanities.org/grants/capacity-grants/", linkLabel: "Capacity Grants" },
+        { group: "boosters", funder: "CT Humanities", program: "Project Grants",
+          amount: "Varies", amountNote: "larger humanities projects", route: "BOOSTERS", routeClass: "route-boosters", status: "Watch", statusClass: "st-watch", watch: true,
+          deadline: "May 1, 2027", deadlineDate: "2027-05-01",
+          note: "For larger humanities projects through the boosters.",
+          link: "https://cthumanities.org/grants/", linkLabel: "CT Humanities grants" },
+        { group: "boosters", funder: "Linford & Mildred White Charitable Fund", program: "Education Grants",
+          amount: "$3,000–$5,000", amountNote: "average grant $4,116", route: "BOOSTERS", routeClass: "route-boosters", status: "Open", statusClass: "st-open",
+          deadline: "Jun 15, 2027", deadlineDate: "2027-06-15",
+          note: "Education programming for underserved populations in Waterbury and surrounding communities — a genuinely local funder. One-year projects; capital projects are not eligible. Administered by Bank of America Private Bank (CT office, trustee).",
+          link: "https://grantexec.com/grants/b2341acc-0e2d-4360-9bb2-59a3346eda67", linkLabel: "Grant listing" },
+        { group: "boosters", funder: "Connecticut Office of the Arts", program: "Supporting Arts Grant",
+          amount: "Varies", route: "Arts orgs only", routeClass: "route-other", status: "Closed", statusClass: "st-closed", watch: true,
+          deadline: "Closed Aug 31, 2026 · next cycle ~summer 2027",
+          note: "Arts organizations and municipal arts departments only — a public school is not directly eligible.",
+          link: "https://portal.ct.gov/decdartsportal/knowledge-base/articles/grants/applying-for-a-grant/grant-schedule", linkLabel: "Grant schedule" },
+        { group: "boosters", funder: "Connecticut Community Foundation", program: "Building Equitable Opportunity",
+          amount: "$5,000–$15,000", route: "BOOSTERS", routeClass: "route-boosters", status: "Closed for 2026", statusClass: "st-closed", watch: true,
+          deadline: "Summer 2027 (2026 cycle closed Sep 15, 2026)",
+          note: "Boosters or the district apply. First-time applicants must meet a program officer in person at least 3 weeks before the deadline.",
+          link: "https://conncf.org", linkLabel: "Connecticut Community Foundation" },
+        { group: "boosters", funder: "Thomaston Savings Bank Foundation", program: "Community Grants",
+          amount: "Varies", route: "Nonprofits / gov't", routeClass: "route-other", status: "Closed", statusClass: "st-closed", watch: true,
+          deadline: "Next Waterbury window Oct 2027",
+          note: "Phase III runs Oct 1–31 each year for New Haven County, including Waterbury (closed Oct 31, 2026). Encouraging sign: Phase II funded Plymouth Public Schools / THS Music Department — school music programs do get funded.",
+          nolink: "No link on file — check the foundation's site when the window approaches." },
+        { group: "boosters", funder: "American Savings Foundation", program: "Program / Community Grants",
+          amount: "Up to $5,000", amountNote: "Community Grants; Program Grants vary", route: "BOOSTERS", routeClass: "route-boosters", status: "Watch", statusClass: "st-watch", watch: true,
+          deadline: "2027 dates not verified",
+          note: "Only fits a youth arts program framed outside school/booster activities — the foundation does <b>not</b> fund schools directly and does <b>not</b> fund booster activities. Verify with a program officer first.",
+          link: "https://www.asfdn.org/grants/program-grants", linkLabel: "Program Grants" },
+        { group: "boosters", funder: "Connecticut Community Foundation", program: "Grassroots Leadership & Strengthening Nonprofits",
+          amount: "$5,000–$15,000", route: "Nonprofits", routeClass: "route-other", status: "Rolling", statusClass: "st-open",
+          deadline: "Rolling / quarterly",
+          note: "Lower priority for a band program unless approached through a community partner.",
+          link: "https://conncf.org", linkLabel: "Connecticut Community Foundation" },
+        { group: "boosters", funder: "Guitar Center Music Foundation", program: "Instrument Grants",
+          amount: "$1,000–$5,000", amountNote: "in-kind", route: "School or 501(c)(3)", routeClass: "route-other", status: "Paused", statusClass: "st-closed", watch: true,
+          deadline: "None — review paused",
+          note: "Application review is paused while the foundation updates its program. Check back.",
+          link: "https://guitarcenterfoundation.org/grants/", linkLabel: "Grants" },
+        { group: "boosters", funder: "Save The Music Foundation", program: "Save The Music",
+          amount: "~$65,000", amountNote: "Core Band package value, in-kind", route: "District", routeClass: "route-other", status: "Invitation only", statusClass: "st-closed", watch: true,
+          deadline: "None — invitation only via district partnership",
+          note: "Also offers the J Dilla Music Technology Grant for grades 9–12. Connecticut is not a focus community.",
+          link: "https://www.savethemusic.org/", linkLabel: "Save The Music" },
+        { group: "boosters", funder: "Connecticut Office of the Arts", program: "Every Child Art Experience Grant",
+          amount: "$2,500", amountNote: "to public schools for out-of-school arts events", route: "DIRECT", routeClass: "route-direct", status: "Not offered FY27", statusClass: "st-closed", watch: true,
+          deadline: "Not offered in FY27 — check back FY28",
+          note: "One of the few state grants aimed straight at public schools, but it is not being offered this year.",
+          link: "https://portal.ct.gov/decdartsportal/knowledge-base/articles/grants/every-child-art-experience/every-child-art-experience-grant-overview", linkLabel: "Grant overview" }
+      ];
+
+      function daysChip(g) {
+        if (!g.deadlineDate) return "";
+        var d = new Date(g.deadlineDate + "T00:00:00");
+        var days = Math.round((d - AS_OF) / 86400000);
+        if (days < 0) return "";
+        var label = days === 0 ? "due today" : days === 1 ? "in 1 day" : "in " + days + " days";
+        var cls = days <= 31 ? "days" : "days later";
+        return "<span class='" + cls + "'>" + label + "</span>";
+      }
+
+      function cardHTML(g) {
+        var h = "<article class='card'>";
+        h += "<p class='funder'>" + g.funder + "</p>";
+        h += "<h3>" + g.program + "</h3>";
+        h += "<div class='amount'>" + g.amount + (g.amountNote ? " <small>" + g.amountNote + "</small>" : "") + "</div>";
+        h += "<div class='badges'><span class='badge " + g.routeClass + "'>" + g.route + "</span>" +
+             "<span class='badge " + g.statusClass + "'>" + g.status + "</span></div>";
+        h += "<p class='deadline'><b>Deadline:</b> " + g.deadline + daysChip(g) + "</p>";
+        h += "<p class='note'>" + g.note + "</p>";
+        if (g.detail) h += "<p class='detail'>" + g.detail + "</p>";
+        if (g.link) {
+          h += "<div class='links'><a class='apply' href='" + g.link + "' target='_blank' rel='noopener'>" + g.linkLabel + " ↗</a>";
+          if (g.link2) h += "<a class='apply' href='" + g.link2 + "' target='_blank' rel='noopener'>" + g.link2Label + " ↗</a>";
+          h += "</div>";
+        } else if (g.nolink) {
+          h += "<span class='nolink'>" + g.nolink + "</span>";
+        }
+        h += "</article>";
+        return h;
+      }
+
+      var containers = { direct: document.getElementById("cards-direct"), boosters: document.getElementById("cards-boosters") };
+      var cardEls = { direct: [], boosters: [] };
+
+      GRANTS.forEach(function (g) {
+        var tmp = document.createElement("div");
+        tmp.innerHTML = cardHTML(g);
+        var el = tmp.firstChild;
+        el._grant = g;
+        containers[g.group].appendChild(el);
+        cardEls[g.group].push(el);
+      });
+
+      /* ---- Running list of all grant links (parent share list) ---- */
+      (function buildLinkList() {
+        var listEl = document.getElementById("linkList");
+        var countEl = document.getElementById("linkCount");
+        var statusEl = document.getElementById("copyStatus");
+        var copyBtn = document.getElementById("copyLinksBtn");
+        if (!listEl) return;
+        var totalLinks = 0;
+        var plain = ["Grant links for the Kennedy Marching Eagles — John F. Kennedy High School, Waterbury, CT", ""];
+        GRANTS.forEach(function (g) {
+          var li = document.createElement("li");
+          var name = document.createElement("span");
+          name.className = "ll-name";
+          name.textContent = g.program + " — " + g.funder;
+          li.appendChild(name);
+          var meta = document.createElement("span");
+          meta.className = "ll-meta";
+          meta.textContent = g.amount + " · Deadline: " + g.deadline + " · " + g.status;
+          li.appendChild(meta);
+          plain.push(g.program + " (" + g.funder + ") — " + g.amount + " — Deadline: " + g.deadline);
+          if (g.link) {
+            totalLinks++;
+            var a = document.createElement("a");
+            a.href = g.link; a.target = "_blank"; a.rel = "noopener";
+            a.textContent = g.linkLabel + ": " + g.link;
+            li.appendChild(a);
+            plain.push("  " + g.link);
+            if (g.link2) {
+              totalLinks++;
+              li.appendChild(document.createElement("br"));
+              var a2 = document.createElement("a");
+              a2.href = g.link2; a2.target = "_blank"; a2.rel = "noopener";
+              a2.textContent = g.link2Label + ": " + g.link2;
+              li.appendChild(a2);
+              plain.push("  " + g.link2);
+            }
+          } else {
+            var nl = document.createElement("span");
+            nl.className = "ll-nolink";
+            nl.textContent = g.nolink || "No public application link yet — see the card below.";
+            li.appendChild(nl);
+            plain.push("  (No public application link yet)");
+          }
+          plain.push("");
+          listEl.appendChild(li);
+        });
+        if (countEl) countEl.textContent = totalLinks + " links from " + GRANTS.length + " programs";
+        if (copyBtn) {
+          copyBtn.addEventListener("click", function () {
+            var text = plain.join("\n");
+            function done() { if (statusEl) statusEl.textContent = "Copied — paste it into ParentSquare, BAND, or email to share with parents."; }
+            function fallback() {
+              var ta = document.createElement("textarea");
+              ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+              document.body.appendChild(ta); ta.select();
+              try { document.execCommand("copy"); done(); }
+              catch (e) { if (statusEl) statusEl.textContent = "Copy didn't work on this device — long-press a link above to copy it instead."; }
+              document.body.removeChild(ta);
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(text).then(done, fallback);
+            } else { fallback(); }
+          });
+        }
+      })();
+
+      function matches(g, f) {
+        if (f === "all") return true;
+        if (f === "direct") return g.group === "direct";
+        if (f === "boosters") return g.group === "boosters";
+        if (f === "soon") return !!g.soon;
+        if (f === "progress") return !!g.progress;
+        if (f === "watch") return !!g.watch;
+        return true;
+      }
+
+      var filterRow = document.getElementById("filterRow");
+      var emptyMsg = document.getElementById("emptyMsg");
+      filterRow.addEventListener("click", function (e) {
+        var btn = e.target.closest(".fbtn");
+        if (!btn) return;
+        var f = btn.getAttribute("data-filter");
+        var btns = filterRow.querySelectorAll(".fbtn");
+        for (var i = 0; i < btns.length; i++) btns[i].setAttribute("aria-pressed", btns[i] === btn ? "true" : "false");
+        var anyVisible = false;
+        ["direct", "boosters"].forEach(function (grp) {
+          var visible = 0;
+          cardEls[grp].forEach(function (el) {
+            var show = matches(el._grant, f);
+            el.classList.toggle("hidden", !show);
+            if (show) visible++;
+          });
+          document.getElementById("sec-" + grp).classList.toggle("hidden", visible === 0);
+          if (visible > 0) anyVisible = true;
+        });
+        emptyMsg.style.display = anyVisible ? "none" : "block";
+      });
+    </script>
+  </body>
+</html>
