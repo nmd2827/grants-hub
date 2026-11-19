@@ -32,11 +32,11 @@
       </div>
       <div class="min-w-0">
         <h1 class="text-lg font-bold text-white tracking-tight">PDF → Flat.io Converter</h1>
-        <p class="text-xs text-slate-400">In-browser optical music recognition: staves, clefs, key &amp; time signatures, rhythms, accidentals, beams, repeats and instrument parts.</p>
+        <p class="text-xs text-slate-400">In-browser optical music recognition: rhythms, tuplets, grace notes, ties, slurs, dynamics, two voices, clef/key/time changes and one-line percussion.</p>
       </div>
     </div>
     <div class="flex items-center gap-2">
-      <button id="btnTrySample" type="button" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition">Run on a sample page</button>
+      <button id="btnTrySample" type="button" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition">Run on sample pages</button>
       <button id="btnDownloadAllZip" type="button" class="hidden px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition">Download all (.zip)</button>
     </div>
   </header>
@@ -72,24 +72,23 @@
     <section class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
       <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
         <div class="text-blue-400 font-bold mb-1">1. Drop a file</div>
-        <p class="text-slate-400 leading-relaxed">Each page is rendered at a resolution matched to its staff size, deskewed, and staff lines are removed before symbols are read.</p>
+        <p class="text-slate-400 leading-relaxed">Pages are rendered at a resolution matched to the staff size, deskewed and locally thresholded (for scans), and staff lines are removed before symbols are read.</p>
       </div>
       <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
         <div class="text-emerald-400 font-bold mb-1">2. Check what was read</div>
-        <p class="text-slate-400 leading-relaxed">Open <strong>Preview</strong> to see the engraved result and a detection overlay of each page. Fix the instrument, key or time signature if needed. Measures that don't add up are flagged.</p>
+        <p class="text-slate-400 leading-relaxed">Open <strong>Preview</strong> for the engraved result and a detection overlay of every page. Bars whose beats don't add up are outlined so you know exactly where to look.</p>
       </div>
       <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
         <div class="text-indigo-400 font-bold mb-1">3. Import into Flat.io</div>
-        <p class="text-slate-400 leading-relaxed">Download <strong>.musicxml</strong> or <strong>.mxl</strong> and import it in Flat.io (New score → Import). Instrument sounds, transpositions and tempo come along.</p>
+        <p class="text-slate-400 leading-relaxed">Download <strong>.musicxml</strong> or <strong>.mxl</strong> and import it in Flat.io (New score → Import). Sounds, transpositions, tempo and dynamics come along.</p>
       </div>
     </section>
 
     <p class="text-[11px] text-slate-500 leading-relaxed px-1">
-      Known limits: tuplets, grace notes, ties, slurs, lyrics, dynamics, multiple voices on one staff, mid-system clef, key or time changes, and one-line percussion staves aren't read. Handwritten or very low-resolution scans won't recognize reliably.
+      Not read: handwritten music, more than two voices per staff, cross-staff beams, lyrics, articulations and ornaments, tempo changes, and 5-line drum-kit notehead shapes. Any recognizer makes mistakes on unusual engraving or poor scans, so check the flagged bars before you share the result.
     </p>
   </main>
 
-  <!-- Preview modal -->
   <div id="previewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 backdrop-blur-sm p-2 sm:p-4">
     <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-5xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[94vh]">
       <div class="px-4 py-3 border-b border-slate-800 flex flex-wrap gap-2 items-center justify-between">
@@ -110,7 +109,7 @@
         <div id="previewEngraved" class="p-3 text-slate-700 text-sm"></div>
         <div id="previewOverlay" class="hidden p-3 space-y-3 bg-slate-100">
           <div class="text-[11px] text-slate-600 flex flex-wrap gap-3">
-            <span><b style="color:#2563eb">■</b> staff</span><span><b style="color:#f97316">■</b> barline</span><span><b style="color:#16a34a">■</b> filled head</span><span><b style="color:#0891b2">■</b> hollow head</span><span><b style="color:#9333ea">■</b> rest</span><span><b style="color:#dc2626">■</b> accidental</span><span><b style="color:#64748b">■</b> clef/key/time</span><span><b style="color:#e11d48">▭</b> measure that doesn't fit the time signature</span>
+            <span><b style="color:#2563eb">■</b> staff</span><span><b style="color:#f97316">■</b> barline</span><span><b style="color:#16a34a">■</b> note (voice 1)</span><span><b style="color:#ca8a04">■</b> voice 2</span><span><b style="color:#0891b2">■</b> hollow head</span><span><b style="color:#9333ea">■</b> rest</span><span><b style="color:#dc2626">■</b> accidental</span><span><b style="color:#db2777">■</b> tie / slur / hairpin</span><span><b style="color:#0d9488">■</b> tuplet, dynamic, grace</span><span><b style="color:#64748b">■</b> clef/key/time</span><span><b style="color:#e11d48">▭</b> bar that doesn't add up</span>
           </div>
           <div id="overlayHost" class="space-y-3"></div>
         </div>
@@ -132,19 +131,24 @@ const OSMD_URL = 'https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.9.0/build
 /* ====================================================================
    Music constants
    ==================================================================== */
-const DIV = 48; // divisions per quarter note
-const TYPE_DIV = { whole: 192, half: 96, quarter: 48, eighth: 24, '16th': 12, '32nd': 6 };
+const DIV = 1680;            // divisions per quarter (divisible by 3, 5, 7 and 16)
+const WHOLE = DIV * 4;
+const TYPE_DIV = { whole: WHOLE, half: DIV * 2, quarter: DIV, eighth: DIV / 2, '16th': DIV / 4, '32nd': DIV / 8 };
 const BEAM_TYPE = ['quarter', 'eighth', '16th', '32nd'];
+const TUPLET_NORMAL = { 2: 3, 3: 2, 4: 3, 5: 4, 6: 4, 7: 4, 9: 8 };
 const DIA = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 const SEMI = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
 const SHARP_ORDER = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
 const FLAT_ORDER = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
-// Diatonic index (octave*7 + step) of the bottom staff line for each clef
 const CLEF_BASE = { G2: 30, F4: 18, C3: 24, C4: 22, C1: 28, perc: 30 };
 const CLEF_XML = { G2: ['G', 2], F4: ['F', 4], C3: ['C', 3], C4: ['C', 4], C1: ['C', 1], perc: ['percussion', 2] };
 const CLEF_LABEL = { G2: 'Treble', F4: 'Bass', C3: 'Alto', C4: 'Tenor', C1: 'Soprano', perc: 'Percussion' };
 const MAJOR = { '-7': 'C♭', '-6': 'G♭', '-5': 'D♭', '-4': 'A♭', '-3': 'E♭', '-2': 'B♭', '-1': 'F', '0': 'C', '1': 'G', '2': 'D', '3': 'A', '4': 'E', '5': 'B', '6': 'F♯', '7': 'C♯' };
 const keyName = f => `${MAJOR[String(f)] || 'C'} major (${f === 0 ? 'no ♯/♭' : Math.abs(f) + (f > 0 ? '♯' : '♭')})`;
+const DYN_WORDS = ['p', 'pp', 'ppp', 'pppp', 'mp', 'mf', 'f', 'ff', 'fff', 'ffff', 'sf', 'sfz', 'sffz', 'sfp', 'fp', 'fz', 'rf', 'rfz'];
+const DYN_RX = /^(p{1,6}|f{1,6}|mp|mf|pf|fp|fz|sf|sfp|sfpp|sfz|sfzp|sffz|rf|rfz)$/;
+const DYN_LEVEL = { pppppp: 10, ppppp: 15, pppp: 20, ppp: 30, pp: 40, p: 54, mp: 69, mf: 83, f: 98, ff: 112, fff: 124, ffff: 127, fffff: 127, ffffff: 127, sf: 98, sfz: 98, sffz: 112, sfp: 54, sfpp: 40, sfzp: 54, fp: 54, fz: 98, rf: 98, rfz: 98, pf: 98 };
+const SMUFL_DYN = { 0xE520: 'p', 0xE521: 'm', 0xE522: 'f', 0xE523: 'r', 0xE524: 's', 0xE525: 'z', 0xE526: 'n', 0xE527: 'pppppp', 0xE528: 'ppppp', 0xE529: 'pppp', 0xE52A: 'ppp', 0xE52B: 'pp', 0xE52C: 'mp', 0xE52D: 'mf', 0xE52E: 'pf', 0xE52F: 'ff', 0xE530: 'fff', 0xE531: 'ffff', 0xE532: 'fffff', 0xE533: 'ffffff', 0xE534: 'fp', 0xE535: 'fz', 0xE536: 'sf', 0xE537: 'sfp', 0xE538: 'sfpp', 0xE539: 'sfz', 0xE53A: 'sfzp', 0xE53B: 'sffz', 0xE53C: 'rf', 0xE53D: 'rfz' };
 
 /* Instruments: t = [diatonic, chromatic, octave-change] from written to sounding pitch */
 const INSTRUMENTS = [
@@ -193,7 +197,6 @@ const INSTRUMENTS = [
 ];
 const INST = Object.fromEntries(INSTRUMENTS.map(i => [i.id, i]));
 
-// Full names, checked in priority order (more specific first)
 const NAME_MATCHERS = [
   [/\bpiccolo\b/, 'piccolo'], [/\balto\s+flutes?\b/, 'alto_flute'], [/\bflutes?\b/, 'flute'],
   [/\benglish\s+horn\b|\bcor\s+anglais\b/, 'english_horn'], [/\boboes?\b/, 'oboe'], [/\bbassoons?\b/, 'bassoon'],
@@ -208,13 +211,12 @@ const NAME_MATCHERS = [
   [/\bhorns?\b/, 'horn'], [/\btimpani\b|\bkettle\s*drums?\b/, 'timpani'],
   [/\bglockenspiel\b|\borchestra\s+bells\b|\bbells\b/, 'glockenspiel'], [/\bxylophone\b/, 'xylophone'],
   [/\bvibraphone\b|\bvibes\b/, 'vibraphone'], [/\bmarimba\b|\bmallets?\b/, 'marimba'],
-  [/\bsnare\b|\bdrums?\b|\bpercussion\b|\bcymbals?\b|\bdrum\s*set\b|\bdrumset\b/, 'percussion'],
+  [/\bsnare\b|\bdrums?\b|\bpercussion\b|\bcymbals?\b|\bdrum\s*set\b|\bdrumset\b|\bwood\s*block\b|\btriangle\b|\btambourine\b/, 'percussion'],
   [/\bviolas?\b/, 'viola'], [/\bviolins?\b/, 'violin'], [/\b(violon)?cellos?\b/, 'cello'],
   [/\bcontrabass\b|\bdouble\s+bass\b|\bstring\s+bass\b|\bupright\s+bass\b/, 'contrabass'],
   [/\belectric\s+bass\b|\bbass\s+guitar\b/, 'electric_bass'], [/\bguitars?\b/, 'guitar'], [/\bharp\b/, 'harp'],
   [/\bpiano(forte)?\b|\bkeyboards?\b/, 'piano'], [/\b(voice|vocals?|soprano|mezzo|choir)\b/, 'voice']
 ];
-// Abbreviations, only used for staff labels at the left of a system
 const ABBR_MATCHERS = [
   [/^picc?\b/, 'piccolo'], [/^a\.?\s*fl/, 'alto_flute'], [/^fl/, 'flute'], [/^e\.?\s*h(n|orn)?\b|^c\.?\s*a\.(\s|$)/, 'english_horn'],
   [/^ob/, 'oboe'], [/^bsn|^bn\b|^fg/, 'bassoon'], [/^b\.?\s*cl/, 'bass_clarinet'], [/^a\.?\s*cl/, 'alto_clarinet'],
@@ -251,14 +253,13 @@ function matchInstrument(text, allowAbbr) {
   }
   return null;
 }
-// "Horn in E♭", "Trumpet in D" … → transposition override
 function customTransposition(id, n) {
   const inst = INST[id];
   if (!inst || inst.perc) return null;
   const m = n.match(/\bin\s+([a-g])(b|#)?(?=\s|$|\d|\))/);
   if (!m) return null;
   const letter = m[1].toUpperCase();
-  let pc = (SEMI[letter] + (m[2] === 'b' ? -1 : m[2] === '#' ? 1 : 0) + 12) % 12;
+  const pc = (SEMI[letter] + (m[2] === 'b' ? -1 : m[2] === '#' ? 1 : 0) + 12) % 12;
   const idx = DIA.indexOf(letter);
   if (pc === 0 && letter === 'C') return [0, 0, inst.t[2]];
   const upCapable = ['trumpet', 'trumpet_c', 'cornet', 'clarinet', 'eb_clarinet', 'clarinet_a'].includes(id);
@@ -299,6 +300,32 @@ function otsu(g) {
   return Math.max(80, Math.min(210, thr));
 }
 function binarize(g, thr) { const b = new Uint8Array(g.length); for (let i = 0; i < g.length; i++) b[i] = g[i] <= thr ? 1 : 0; return b; }
+// Sauvola-style local threshold on a block grid (for scans with uneven lighting / gray backgrounds)
+function adaptiveBinarize(g, W, H) {
+  const B = 24, bw = Math.ceil(W / B), bh = Math.ceil(H / B);
+  const sum = new Float64Array(bw * bh), sq = new Float64Array(bw * bh), cnt = new Float64Array(bw * bh);
+  for (let y = 0; y < H; y++) { const by = (y / B) | 0; for (let x = 0; x < W; x++) { const v = g[y * W + x], k = by * bw + ((x / B) | 0); sum[k] += v; sq[k] += v * v; cnt[k]++; } }
+  const thr = new Float32Array(bw * bh);
+  const glob = otsu(g);
+  for (let by = 0; by < bh; by++) for (let bx = 0; bx < bw; bx++) {
+    let s = 0, q = 0, n = 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const yy = by + dy, xx = bx + dx; if (yy < 0 || xx < 0 || yy >= bh || xx >= bw) continue; const k = yy * bw + xx; s += sum[k]; q += sq[k]; n += cnt[k]; }
+    const m = s / n, sd = Math.sqrt(Math.max(0, q / n - m * m));
+    let t = m * (1 + 0.25 * (sd / 128 - 1));
+    t = Math.min(t, glob + 45);           // never call a near-white background ink
+    thr[by * bw + bx] = Math.max(t, Math.min(glob, 60));
+  }
+  const b = new Uint8Array(W * H);
+  for (let y = 0; y < H; y++) {
+    const fy = Math.min(bh - 1, Math.max(0, (y - B / 2) / B)), y0 = Math.floor(fy), y1 = Math.min(bh - 1, y0 + 1), ty = fy - y0;
+    for (let x = 0; x < W; x++) {
+      const fx = Math.min(bw - 1, Math.max(0, (x - B / 2) / B)), x0 = Math.floor(fx), x1 = Math.min(bw - 1, x0 + 1), tx = fx - x0;
+      const t = (thr[y0 * bw + x0] * (1 - tx) + thr[y0 * bw + x1] * tx) * (1 - ty) + (thr[y1 * bw + x0] * (1 - tx) + thr[y1 * bw + x1] * tx) * ty;
+      b[y * W + x] = g[y * W + x] <= t ? 1 : 0;
+    }
+  }
+  return b;
+}
 
 function hRuns(bin, W, H, out) {
   const r = out || new Uint16Array(W * H);
@@ -326,8 +353,6 @@ function vRuns(bin, W, H, out) {
   }
   return r;
 }
-
-// Interline (line-to-line distance) and staff line thickness from vertical run statistics
 function estimateSpacing(bin, W, H) {
   const blackH = new Float64Array(64), pairH = new Float64Array(256);
   const step = Math.max(1, Math.floor(W / 400));
@@ -346,7 +371,6 @@ function estimateSpacing(bin, W, H) {
   for (let i = 5; i < 256; i++) { const v = pairH[i] + 0.5 * (pairH[i - 1] + (pairH[i + 1] || 0)); if (v > bestV) { bestV = v; iL = i; } }
   return { iL, thick };
 }
-
 function estimateSkew(bin, W, H) {
   let count = 0; for (let i = 0; i < bin.length; i++) count += bin[i];
   if (count < 2000) return 0;
@@ -373,8 +397,6 @@ function rotateCanvas(src, deg) {
   ctx.translate(c.width / 2, c.height / 2); ctx.rotate(-deg * Math.PI / 180); ctx.drawImage(src, -src.width / 2, -src.height / 2);
   return c;
 }
-
-// 8- or 4-connected components with bounding boxes
 function labelCC(img, W, H, conn4) {
   const lab = new Int32Array(W * H);
   let stack = new Int32Array(1 << 16);
@@ -405,55 +427,57 @@ function labelCC(img, W, H, conn4) {
   }
   return { lab, comps };
 }
-
 const median = a => { const s = [...a].sort((x, y) => x - y); return s.length ? s[s.length >> 1] : 0; };
 const mode = a => { const m = new Map(); let best = null, bc = 0; for (const v of a) { const c = (m.get(v) || 0) + 1; m.set(v, c); if (c > bc) { bc = c; best = v; } } return best; };
 
 /* ====================================================================
-   Digit classifier (time signatures, multi-measure rest counts)
+   Template classifiers (digits for time signatures/tuplets/multirests, dynamics words)
    ==================================================================== */
-const GW = 10, GH = 14;
-let DIGIT_TEMPLATES = null;
-function gridVector(get, x0, y0, w, h) {
-  const v = new Float32Array(GW * GH);
-  for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
-    const ax = x0 + Math.floor(gx * w / GW), bx = x0 + Math.max(Math.floor(gx * w / GW) + 1, Math.floor((gx + 1) * w / GW));
-    const ay = y0 + Math.floor(gy * h / GH), by = y0 + Math.max(Math.floor(gy * h / GH) + 1, Math.floor((gy + 1) * h / GH));
+function gridVector(get, x0, y0, w, h, gw, gh) {
+  const v = new Float32Array(gw * gh);
+  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+    const ax = x0 + Math.floor(gx * w / gw), bx = x0 + Math.max(Math.floor(gx * w / gw) + 1, Math.floor((gx + 1) * w / gw));
+    const ay = y0 + Math.floor(gy * h / gh), by = y0 + Math.max(Math.floor(gy * h / gh) + 1, Math.floor((gy + 1) * h / gh));
     let s = 0, c = 0;
     for (let y = ay; y < by; y++) for (let x = ax; x < bx; x++) { s += get(x, y); c++; }
-    v[gy * GW + gx] = c ? s / c : 0;
+    v[gy * gw + gx] = c ? s / c : 0;
   }
   return v;
 }
-function buildDigitTemplates() {
-  if (DIGIT_TEMPLATES) return DIGIT_TEMPLATES;
-  DIGIT_TEMPLATES = [];
-  const fonts = ['bold 72px "Times New Roman", Times, serif', 'bold 72px Georgia, serif', '900 72px serif', 'bold 72px "Century Schoolbook", "New Century Schoolbook", serif', 'bold 72px Arial, Helvetica, sans-serif'];
-  const c = document.createElement('canvas'); c.width = 110; c.height = 110;
+function renderTemplates(labels, fonts, gw, gh, cw) {
+  const out = [];
+  const c = document.createElement('canvas'); c.width = cw; c.height = 130;
   const ctx = c.getContext('2d', { willReadFrequently: true });
-  for (const f of fonts) for (let d = 0; d <= 9; d++) {
-    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 110, 110); ctx.fillStyle = '#000'; ctx.font = f; ctx.textBaseline = 'middle'; ctx.fillText(String(d), 20, 55);
-    const data = ctx.getImageData(0, 0, 110, 110).data;
-    let minX = 110, minY = 110, maxX = -1, maxY = -1;
-    for (let y = 0; y < 110; y++) for (let x = 0; x < 110; x++) if (data[(y * 110 + x) * 4] < 128) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+  for (const f of fonts) for (const L of labels) {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cw, 130); ctx.fillStyle = '#000'; ctx.font = f; ctx.textBaseline = 'middle'; ctx.fillText(String(L), 20, 65);
+    const data = ctx.getImageData(0, 0, cw, 130).data;
+    let minX = cw, minY = 130, maxX = -1, maxY = -1;
+    for (let y = 0; y < 130; y++) for (let x = 0; x < cw; x++) if (data[(y * cw + x) * 4] < 128) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
     if (maxX < 0) continue;
     const w = maxX - minX + 1, h = maxY - minY + 1;
-    const v = gridVector((x, y) => data[(y * 110 + x) * 4] < 128 ? 1 : 0, minX, minY, w, h);
-    DIGIT_TEMPLATES.push({ d, v, ar: w / h });
+    out.push({ L, v: gridVector((x, y) => data[(y * cw + x) * 4] < 128 ? 1 : 0, minX, minY, w, h, gw, gh), ar: w / h });
   }
-  return DIGIT_TEMPLATES;
+  return out;
 }
-function classifyDigitComp(comp, lab, W) {
-  const T = buildDigitTemplates();
-  const v = gridVector((x, y) => lab[y * W + x] === comp.id ? 1 : 0, comp.minX, comp.minY, comp.w, comp.h);
-  const ar = comp.w / comp.h;
+let DIGIT_T = null, DYN_T = null;
+function buildTemplates() {
+  if (!DIGIT_T) DIGIT_T = renderTemplates([0, 1, 2, 3, 4, 5, 6, 7, 8, 9], ['bold 72px "Times New Roman", Times, serif', 'bold 72px Georgia, serif', '900 72px serif', 'bold 72px Arial, Helvetica, sans-serif', 'italic bold 72px Georgia, serif', 'italic bold 72px "Times New Roman", Times, serif'], 10, 14, 110);
+  if (!DYN_T) DYN_T = renderTemplates(DYN_WORDS, ['italic bold 80px Georgia, serif', 'italic bold 80px "Times New Roman", Times, serif', 'italic 900 80px serif'], 18, 9, 420);
+}
+function classifyWith(T, v, ar) {
   let best = null, bs = Infinity;
   for (const t of T) {
     let s = 0; for (let i = 0; i < v.length; i++) { const d = v[i] - t.v[i]; s += d * d; }
-    s = s / v.length + 0.6 * Math.abs(ar - t.ar);
-    if (s < bs) { bs = s; best = t.d; }
+    s = s / v.length + 0.6 * Math.abs(Math.log(ar / t.ar)) * 0.5;
+    if (s < bs) { bs = s; best = t.L; }
   }
-  return { d: best, score: bs };
+  return { L: best, score: bs };
+}
+function classifyDigitComp(comp, lab, W) {
+  buildTemplates();
+  const v = gridVector((x, y) => lab[y * W + x] === comp.id ? 1 : 0, comp.minX, comp.minY, comp.w, comp.h, 10, 14);
+  const r = classifyWith(DIGIT_T, v, comp.w / comp.h);
+  return { d: r.L, score: r.score };
 }
 function readNumberFromComps(list, lab, W) {
   if (!list.length) return null;
@@ -462,25 +486,34 @@ function readNumberFromComps(list, lab, W) {
   for (const c of sorted) { const r = classifyDigitComp(c, lab, W); s += r.d; worst = Math.max(worst, r.score); }
   return worst < 0.2 ? parseInt(s, 10) : null;
 }
-// Digits in the PDF text layer (ASCII or SMuFL time-signature glyphs U+E080–E089)
-function textNumberInRect(items, r) {
+function classifyDynGroup(group, lab, W) {
+  buildTemplates();
+  const ids = new Set(group.map(c => c.id));
+  const x0 = Math.min(...group.map(c => c.minX)), x1 = Math.max(...group.map(c => c.maxX));
+  const y0 = Math.min(...group.map(c => c.minY)), y1 = Math.max(...group.map(c => c.maxY));
+  const v = gridVector((x, y) => ids.has(lab[y * W + x]) ? 1 : 0, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 18, 9);
+  const r = classifyWith(DYN_T, v, (x1 - x0 + 1) / (y1 - y0 + 1));
+  return { word: r.L, score: r.score };
+}
+function textNumberInRect(items, r, pua0) {
   if (!items || !items.length) return null;
+  const base = pua0 || 0xE080;
   const hits = items.filter(it => {
     const cx = it.x + it.w / 2;
-    const pua = [...it.str].some(ch => { const c = ch.codePointAt(0); return c >= 0xE080 && c <= 0xE089; });
+    const pua = [...it.str].some(ch => { const c = ch.codePointAt(0); return c >= base && c <= base + 9; });
     const cy = pua ? it.baseline : it.baseline - it.h * 0.35;
     return cx >= r.x0 && cx <= r.x1 && cy >= r.y0 && cy <= r.y1;
   }).sort((a, b) => a.x - b.x);
   let s = '';
   for (const it of hits) for (const ch of it.str) {
     const c = ch.codePointAt(0);
-    if (c >= 0x30 && c <= 0x39) s += ch; else if (c >= 0xE080 && c <= 0xE089) s += String(c - 0xE080);
+    if (c >= 0x30 && c <= 0x39) s += ch; else if (c >= base && c <= base + 9) s += String(c - base);
   }
   return s ? parseInt(s, 10) : null;
 }
 
 /* ====================================================================
-   Page analysis (OMR)
+   Staff detection
    ==================================================================== */
 function findStaves(bin, hr, vr, W, H, sp) {
   const minRun = Math.max(24, Math.round(sp.iL * 4));
@@ -492,14 +525,14 @@ function findStaves(bin, hr, vr, W, H, sp) {
     for (let x = 0; x < W; x++) { const i = o + x; if (bin[i] && hr[i] >= minRun && vr[i] <= maxT) { c++; if (x < a) a = x; b = x; } }
     score[y] = c; mnx[y] = a; mxx[y] = b; if (c > mx) mx = c;
   }
-  if (mx < minRun) return [];
+  if (mx < minRun) return { staves: [], singles: [] };
   const thr = Math.max(minRun, mx * 0.15);
   const lines = [];
   for (let y = 0; y < H;) {
     if (score[y] < thr) { y++; continue; }
     let ws = 0, ys = 0, best = y;
     while (y < H && score[y] >= thr) { ws += score[y]; ys += score[y] * y; if (score[y] > score[best]) best = y; y++; }
-    lines.push({ y: ys / ws, x0: mnx[best], x1: mxx[best] });
+    lines.push({ y: ys / ws, x0: mnx[best], x1: mxx[best], used: false });
   }
   const staves = [];
   for (let i = 0; i + 4 < lines.length;) {
@@ -509,16 +542,30 @@ function findStaves(bin, hr, vr, W, H, sp) {
     const overlap = Math.min(...g.map(l => l.x1)) - Math.max(...g.map(l => l.x0));
     if (Math.max(...gaps) / Math.min(...gaps) < 1.3 && avg > sp.iL * 0.5 && avg < sp.iL * 1.8 && overlap > avg * 6) {
       staves.push({ lines: g.map(l => l.y), iL: avg, left: median(g.map(l => l.x0)), right: median(g.map(l => l.x1)), top: g[0].y, bottom: g[4].y, mid: g[2].y });
+      g.forEach(l => { l.used = true; });
       i += 5;
     } else i++;
   }
-  return staves;
+  const iLref = staves.length ? median(staves.map(s => s.iL)) : sp.iL;
+  const singles = lines.filter((l, i) => !l.used && l.x1 - l.x0 >= Math.max(0.3 * W, 12 * iLref)
+    && !lines.some((o, j) => j !== i && Math.abs(o.y - l.y) < 2.2 * iLref)
+    && !staves.some(s => l.y > s.top - 2 * s.iL && l.y < s.bottom + 2 * s.iL));
+  return { staves, singles };
 }
-
+function oneLineInterline(bin, vr, W, line, thick) {
+  const hist = new Float64Array(120), y = Math.round(line.y);
+  for (let x = line.x0; x <= line.x1; x++) { const v = vr[y * W + x]; if (v >= 2 * thick + 3 && v < 120) hist[v]++; }
+  let best = 0; for (let i = 1; i < 120; i++) if (hist[i] > hist[best]) best = i;
+  return best ? best : 20;
+}
+function makeOneLineStaff(line, iL) {
+  const y = line.y;
+  return { oneLine: true, realLines: [y], lines: [y - 2 * iL, y - iL, y, y + iL, y + 2 * iL], iL, left: line.x0, right: line.x1, top: y - 2 * iL, bottom: y + 2 * iL, mid: y };
+}
 function removeStaffLines(bin, clean, W, H, staves, maxT) {
   for (const s of staves) {
     const x0 = Math.max(0, Math.floor(s.left - s.iL)), x1 = Math.min(W - 1, Math.ceil(s.right + s.iL));
-    for (const ly of s.lines) {
+    for (const ly of (s.realLines || s.lines)) {
       const yl = Math.round(ly);
       for (let x = x0; x <= x1; x++) {
         let yc = -1;
@@ -531,15 +578,14 @@ function removeStaffLines(bin, clean, W, H, staves, maxT) {
     }
   }
 }
-
 function groupSystems(staves, bin, W) {
   if (!staves.length) return [];
   const systems = []; let cur = [0];
   for (let i = 1; i < staves.length; i++) {
     const a = staves[i - 1], b = staves[i], iL = (a.iL + b.iL) / 2;
     let connected = false;
-    const xs = Math.max(0, Math.round(Math.min(a.left, b.left) - 2.5 * iL)), xe = Math.min(W - 1, Math.round(Math.max(a.left, b.left) + 1.2 * iL));
-    const y0 = Math.round(a.bottom), y1 = Math.round(b.top);
+    const xs = Math.max(0, Math.round(Math.min(a.left, b.left) - 2.5 * iL)), xe = Math.min(W - 2, Math.round(Math.max(a.left, b.left) + 1.2 * iL));
+    const y0 = Math.round(a.oneLine ? a.mid : a.bottom), y1 = Math.round(b.oneLine ? b.mid : b.top);
     for (let x = xs; x <= xe && !connected; x++) {
       let miss = 0;
       for (let y = y0; y <= y1; y++) if (!bin[y * W + x] && !bin[y * W + x + 1]) { if (++miss > 2) break; }
@@ -551,7 +597,9 @@ function groupSystems(staves, bin, W) {
   return systems;
 }
 
-// Vertical strokes of a component (used for accidentals and rests)
+/* ====================================================================
+   Symbol shape tests
+   ==================================================================== */
 function strokesOf(c, lab, W, minLen) {
   const cols = [];
   for (let x = c.minX; x <= c.maxX; x++) {
@@ -563,7 +611,7 @@ function strokesOf(c, lab, W, minLen) {
   }
   const strokes = []; let curS = null;
   for (const col of cols) {
-    if (col.len >= minLen) { if (curS && col.x - curS.lastX <= 1) { curS.lastX = col.x; if (col.len > curS.len) Object.assign(curS, { len: col.len, top: col.top, bot: col.bot, x: col.x }); } else { curS = { ...col, lastX: col.x }; strokes.push(curS); } }
+    if (col.len >= minLen) { if (curS && col.x - curS.lastX <= 1) { curS.lastX = col.x; if (col.len > curS.len) Object.assign(curS, { len: col.len, top: col.top, bot: col.bot, x: col.x }); } else { curS = { ...col, lastX: col.x, x0: col.x }; strokes.push(curS); } }
     else curS = null;
   }
   const maxLen = cols.reduce((m, c2) => Math.max(m, c2.len), 0);
@@ -571,11 +619,12 @@ function strokesOf(c, lab, W, minLen) {
 }
 function classifyAccidental(c, iL, lab, W) {
   if (c.h < 1.4 * iL || c.h > 3.9 * iL || c.w < 0.3 * iL || c.w > 1.5 * iL) return null;
-  const { strokes } = strokesOf(c, lab, W, 1.1 * iL);
+  const { strokes: raw } = strokesOf(c, lab, W, 1.1 * iL);
+  if (raw.some(st => st.lastX - st.x0 + 1 > 0.35 * iL)) return null; // diagonal/zigzag shapes (rests) are not accidentals
+  const strokes = raw;
   if (strokes.length === 1) {
     const st = strokes[0];
     if (st.len < 1.4 * iL || c.w < 0.45 * iL) return null;
-    // flat: bowl to the right of the stem in the lower part
     let ink = 0;
     for (let y = Math.round(c.maxY - 0.9 * iL); y <= c.maxY; y++) for (let x = Math.round(st.x + 0.2 * iL); x <= c.maxX; x++) if (lab[y * W + x] === c.id) ink++;
     if (ink < 0.12 * iL * iL) return null;
@@ -584,9 +633,63 @@ function classifyAccidental(c, iL, lab, W) {
   }
   if (strokes.length >= 2) {
     const a = strokes[0], b = strokes[strokes.length - 1];
-    if (b.x - a.x > 0.9 * iL) return null;
+    if (b.x - a.x > 0.9 * iL || Math.min(a.len, b.len) < 1.5 * iL) return null;
     if (Math.abs(a.top - b.top) > 0.55 * iL && Math.abs(a.bot - b.bot) > 0.55 * iL) return 'natural';
     return 'sharp';
+  }
+  return null;
+}
+function maxHoleArea(c, lab, W) {
+  const w = c.w + 2, h = c.h + 2, m = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const X = c.minX + x - 1, Y = c.minY + y - 1;
+    const inside = x > 0 && y > 0 && x < w - 1 && y < h - 1 && lab[Y * W + X] === c.id;
+    m[y * w + x] = inside ? 0 : 1;
+  }
+  const cc = labelCC(m, w, h, true);
+  let best = 0; for (const k of cc.comps) if (k && !k.touches) best = Math.max(best, k.area);
+  return best;
+}
+function clefShape(c, s, near, lab, W) {
+  const iL = s.iL;
+  if (s.oneLine || c.w < 1.0 * iL || c.w > 3.0 * iL) return null;
+  if (c.h >= 4.3 * iL && c.h <= 8.5 * iL && c.minY < s.top - 0.3 * iL && c.maxY > s.bottom + 0.3 * iL && maxHoleArea(c, lab, W) >= 0.45 * iL * iL) return { clef: 'G2', extra: [] };
+  if (c.h >= 1.9 * iL && c.h <= 3.6 * iL && Math.abs(c.minY - s.top) <= 0.7 * iL && c.maxY < s.bottom + 0.2 * iL) {
+    const dots = [s.lines[1] - 0.5 * iL, s.lines[1] + 0.5 * iL].map(y => near.find(d => d !== c && d.minX > c.maxX - 0.2 * iL && d.minX < c.maxX + 1.0 * iL && d.w <= 0.6 * iL && d.h <= 0.6 * iL && d.w >= 0.15 * iL && Math.abs(d.cy - y) < 0.35 * iL));
+    if (dots[0] && dots[1]) return { clef: 'F4', extra: dots };
+  }
+  if (c.h >= 3.3 * iL && c.h <= 5 * iL) {
+    const { strokes } = strokesOf(c, lab, W, 3.2 * iL);
+    if (strokes.length >= 2 && strokes[0].x < c.minX + 0.45 * c.w) return { clef: (s.bottom - c.cy) / (iL / 2) > 5 ? 'C4' : 'C3', extra: [] };
+  }
+  return null;
+}
+function detectTimeSig(s, near, x0, lab, W, textItems, strict) {
+  const iL = s.iL, mid = s.mid, top = s.top, bottom = s.bottom;
+  const tc = near.filter(c => c.minX >= x0 - 0.1 * iL && c.minX <= x0 + 2.4 * iL && c.w >= 0.4 * iL && c.w <= 3 * iL && c.minY >= top - 0.7 * iL && c.maxY <= bottom + 0.7 * iL);
+  const tops = tc.filter(c => c.maxY <= mid + 0.4 * iL && c.h >= 1.2 * iL && c.h <= 2.6 * iL && c.minY < top + 0.6 * iL);
+  const bots = tc.filter(c => c.minY >= mid - 0.4 * iL && c.h >= 1.2 * iL && c.h <= 2.6 * iL && c.maxY > bottom - 0.6 * iL);
+  if (tops.length && bots.length && tops.length <= 2 && bots.length <= 2) {
+    const tx0 = Math.min(...tops.map(c => c.minX)), tx1 = Math.max(...tops.map(c => c.maxX));
+    const bx0 = Math.min(...bots.map(c => c.minX)), bx1 = Math.max(...bots.map(c => c.maxX));
+    if (Math.min(tx1, bx1) > Math.max(tx0, bx0)) {
+      const end = Math.max(tx1, bx1);
+      const rx0 = Math.min(tx0, bx0) - 0.3 * iL, rx1 = end + 0.3 * iL;
+      let beats = textNumberInRect(textItems, { x0: rx0, x1: rx1, y0: top - 0.5 * iL, y1: mid });
+      let beatType = textNumberInRect(textItems, { x0: rx0, x1: rx1, y0: mid, y1: bottom + 0.5 * iL });
+      if (!beats) beats = readNumberFromComps(tops, lab, W);
+      if (!beatType) beatType = readNumberFromComps(bots, lab, W);
+      const okB = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15].includes(beats), okT = [2, 4, 8, 16].includes(beatType);
+      if (strict && !(okB && okT)) return null;
+      return { time: { beats: okB ? beats : null, beatType: okT ? beatType : null, symbol: null }, end, comps: [...tops, ...bots] };
+    }
+  }
+  const cc = tc.find(c => c.h >= 1.5 * iL && c.h <= 2.7 * iL && Math.abs(c.cy - mid) < 0.5 * iL && c.w >= 1.0 * iL && c.w <= 2.4 * iL);
+  if (cc && !classifyAccidental(cc, iL, lab, W) && maxHoleArea(cc, lab, W) < 0.1 * iL * iL && !strict) return { time: { beats: 4, beatType: 4, symbol: 'common' }, end: cc.maxX, comps: [cc] };
+  const cut = tc.find(c => c.h > 2.7 * iL && c.h <= 4.2 * iL && Math.abs(c.cy - mid) < 0.6 * iL && c.w >= 1.0 * iL && c.w <= 2.4 * iL);
+  if (cut && !strict) {
+    const { strokes } = strokesOf(cut, lab, W, 2.4 * iL);
+    if (strokes.length === 1 && Math.abs(strokes[0].x - cut.cx) < 0.25 * cut.w) return { time: { beats: 2, beatType: 2, symbol: 'cut' }, end: cut.maxX, comps: [cut] };
   }
   return null;
 }
@@ -597,7 +700,7 @@ function analyzeHeader(s, near, lab, W, textItems) {
   for (const c of near) {
     if (c.w < 0.35 * iL) continue;
     if (c.minX > s.left + 5 * iL) break;
-    if (c.h >= 2.5 * iL && c.h <= 10 * iL && c.w <= 4 * iL) {
+    if (!s.oneLine && c.h >= 2.5 * iL && c.h <= 10 * iL && c.w <= 4 * iL) {
       const u = { minX: c.minX, maxX: c.maxX, minY: c.minY, maxY: c.maxY };
       for (const d of near) if (d !== c && d.minX < c.maxX - 0.1 * iL && d.maxX > c.minX && d.minX >= c.minX - 0.3 * iL && d.w >= 2) {
         u.minY = Math.min(u.minY, d.minY); u.maxY = Math.max(u.maxY, d.maxY); u.maxX = Math.max(u.maxX, d.maxX);
@@ -616,12 +719,12 @@ function analyzeHeader(s, near, lab, W, textItems) {
       break;
     }
   }
-  // Key signature
+  if (s.oneLine && !clef) clef = 'perc';
   let keyType = null, keyCount = 0, keyEnd = clefEnd;
   const keyComps = [];
-  for (const c of near) {
+  if (!s.oneLine) for (const c of near) {
     if (c.minX < clefEnd - 0.1 * iL || c.w < 2 || c.h < 2) continue;
-    if (!keyCount && c.w < 0.7 * iL && c.h < 0.7 * iL && c.minX < clefEnd + 1.5 * iL) continue; // bass clef dots
+    if (!keyCount && c.w < 0.7 * iL && c.h < 0.7 * iL && c.minX < clefEnd + 1.5 * iL) continue;
     if (c.minX - keyEnd > 1.8 * iL) break;
     if (c.cy < s.top - 1.6 * iL || c.cy > s.bottom + 1.2 * iL) continue;
     const type = classifyAccidental(c, iL, lab, W);
@@ -631,39 +734,16 @@ function analyzeHeader(s, near, lab, W, textItems) {
     if (keyCount >= 7) break;
   }
   const fifths = keyType === 'sharp' ? keyCount : keyType === 'flat' ? -keyCount : 0;
-  // Time signature
-  let time = null, timeEnd = keyEnd; const timeComps = [];
-  const tc = near.filter(c => c.minX >= keyEnd - 0.1 * iL && c.minX <= keyEnd + 2.4 * iL && c.w >= 0.4 * iL && c.w <= 3 * iL && c.minY >= s.top - 0.7 * iL && c.maxY <= s.bottom + 0.7 * iL);
-  const tops = tc.filter(c => c.maxY <= mid + 0.4 * iL && c.h >= 1.2 * iL && c.h <= 2.6 * iL && c.minY < s.top + 0.6 * iL);
-  const bots = tc.filter(c => c.minY >= mid - 0.4 * iL && c.h >= 1.2 * iL && c.h <= 2.6 * iL && c.maxY > s.bottom - 0.6 * iL);
-  if (tops.length && bots.length && tops.length <= 2 && bots.length <= 2) {
-    const tx0 = Math.min(...tops.map(c => c.minX)), tx1 = Math.max(...tops.map(c => c.maxX));
-    const bx0 = Math.min(...bots.map(c => c.minX)), bx1 = Math.max(...bots.map(c => c.maxX));
-    if (Math.min(tx1, bx1) > Math.max(tx0, bx0)) {
-      timeEnd = Math.max(tx1, bx1); timeComps.push(...tops, ...bots);
-      const x0 = Math.min(tx0, bx0) - 0.3 * iL, x1 = timeEnd + 0.3 * iL;
-      let beats = textNumberInRect(textItems, { x0, x1, y0: s.top - 0.5 * iL, y1: mid });
-      let beatType = textNumberInRect(textItems, { x0, x1, y0: mid, y1: s.bottom + 0.5 * iL });
-      if (!beats) beats = readNumberFromComps(tops, lab, W);
-      if (!beatType) beatType = readNumberFromComps(bots, lab, W);
-      const okB = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15].includes(beats), okT = [2, 4, 8, 16].includes(beatType);
-      time = { beats: okB ? beats : null, beatType: okT ? beatType : null, symbol: null, found: true };
-    }
-  } else {
-    const cc = tc.find(c => c.h >= 1.5 * iL && c.h <= 2.7 * iL && Math.abs(c.cy - mid) < 0.5 * iL && c.w >= 1.0 * iL && c.w <= 2.4 * iL);
-    const cut = tc.find(c => c.h > 2.7 * iL && c.h <= 4.2 * iL && Math.abs(c.cy - mid) < 0.6 * iL && c.w >= 1.0 * iL && c.w <= 2.4 * iL);
-    if (cc && !classifyAccidental(cc, iL, lab, W)) { time = { beats: 4, beatType: 4, symbol: 'common', found: true }; timeEnd = cc.maxX; timeComps.push(cc); }
-    else if (cut) {
-      const { strokes } = strokesOf(cut, lab, W, 2.4 * iL);
-      if (strokes.length === 1 && Math.abs(strokes[0].x - cut.cx) < 0.25 * cut.w) { time = { beats: 2, beatType: 2, symbol: 'cut', found: true }; timeEnd = cut.maxX; timeComps.push(cut); }
-    }
-  }
+  const ts = detectTimeSig(s, near, keyEnd, lab, W, textItems, false);
+  const time = ts ? ts.time : null, timeEnd = ts ? ts.end : keyEnd;
   const headerEnd = (confClef ? Math.max(clefEnd, keyEnd, timeEnd) : s.left) + 0.3 * iL;
-  return { clef, fifths, keyCount, keyType, time, clefEnd, keyEnd, timeEnd, headerEnd, keyComps, timeComps };
+  return { clef, fifths, keyCount, keyType, time, clefEnd, keyEnd, timeEnd, headerEnd, keyComps, timeComps: ts ? ts.comps : [] };
 }
 
 function findBarlines(s, above, below, clean, chr, lab, W, H) {
-  const iL = s.iL, top = Math.round(s.top), bot = Math.round(s.bottom), hgt = bot - top;
+  const iL = s.iL;
+  const top = Math.round(s.oneLine ? s.mid - 0.8 * iL : s.top), bot = Math.round(s.oneLine ? s.mid + 0.8 * iL : s.bottom), hgt = bot - top;
+  const allow = s.oneLine ? 1.0 * iL : 0.7 * iL;
   const xs = [];
   const x0 = Math.round(s.header.headerEnd - 0.4 * iL), x1 = Math.min(W - 1, Math.round(s.right + 0.6 * iL));
   for (let x = Math.max(0, x0); x <= x1; x++) {
@@ -671,12 +751,16 @@ function findBarlines(s, above, below, clean, chr, lab, W, H) {
     for (let y = top; y <= bot; y++) if (!clean[y * W + x]) { if (++miss > hgt * 0.06 + 1) break; }
     if (miss > hgt * 0.06 + 1) continue;
     let thin = 0;
-    for (let k = 0; k < 9; k++) { const y = Math.round(top + hgt * (k + 0.5) / 9); if (chr[y * W + x] <= 0.7 * iL) thin++; }
-    if (thin < 7) continue;
+    for (let k = 0; k < 17; k++) { const y = Math.round(top + hgt * (k + 0.5) / 17); if (chr[y * W + x] <= 0.7 * iL) thin++; }
+    if (thin < 15) continue;
+    { // a stem ending in a notehead at the top or bottom of the staff is not a barline
+      const ends = [0, 1, 15, 16].map(k => Math.round(top + hgt * (k + 0.5) / 17));
+      if (ends.some(y => chr[y * W + x] > 0.7 * iL)) continue;
+    }
     let t = top; while (t > 0 && clean[(t - 1) * W + x]) t--;
     let b = bot; while (b < H - 1 && clean[(b + 1) * W + x]) b++;
-    const okUp = top - t <= 0.7 * iL || (above && t <= above.bottom + 0.7 * iL);
-    const okDn = b - bot <= 0.7 * iL || (below && b >= below.top - 0.7 * iL);
+    const okUp = top - t <= allow || (above && t <= (above.oneLine ? above.mid : above.bottom) + 0.7 * iL);
+    const okDn = b - bot <= allow || (below && b >= (below.oneLine ? below.mid : below.top) - 0.7 * iL);
     if (okUp && okDn) xs.push(x);
   }
   const strokes = [];
@@ -690,10 +774,9 @@ function findBarlines(s, above, below, clean, chr, lab, W, H) {
   const dot = (cx, cy) => {
     const r = Math.max(1, Math.round(0.14 * iL)); let ink = 0, tot = 0;
     for (let y = Math.round(cy) - r; y <= Math.round(cy) + r; y++) for (let x = Math.round(cx) - r; x <= Math.round(cx) + r; x++) { tot++; if (clean[y * W + x]) ink++; }
-    if (ink / tot < 0.5) return false;
-    const id = lab[Math.round(cy) * W + Math.round(cx)]; return id > 0;
+    return ink / tot >= 0.5 && lab[Math.round(cy) * W + Math.round(cx)] > 0;
   };
-  const yA = (s.lines[1] + s.lines[2]) / 2, yB = (s.lines[2] + s.lines[3]) / 2;
+  const yA = s.oneLine ? s.mid - 0.5 * iL : (s.lines[1] + s.lines[2]) / 2, yB = s.oneLine ? s.mid + 0.5 * iL : (s.lines[2] + s.lines[3]) / 2;
   const findDot = (xa, xb) => { for (let x = Math.round(xa); x <= Math.round(xb); x++) if (dot(x, yA) && dot(x, yB)) return true; return false; };
   for (const c of clusters) {
     c.thick = c.strokes.some(st => st.x1 - st.x0 + 1 > 0.3 * iL);
@@ -704,32 +787,126 @@ function findBarlines(s, above, below, clean, chr, lab, W, H) {
   return clusters;
 }
 
+/* ====================================================================
+   Per-staff symbol recognition
+   ==================================================================== */
+function detectKeyChange(s, near, x0, lab, W, heads) {
+  const iL = s.iL; const chain = []; let end = x0;
+  for (const c of near) {
+    if (c.minX < x0 - 0.1 * iL) continue;
+    if (c.minX - end > (chain.length ? 1.6 : 1.5) * iL) break;
+    const t = classifyAccidental(c, iL, lab, W);
+    if (!t || c.cy < s.top - 1.6 * iL || c.cy > s.bottom + 1.2 * iL) break;
+    chain.push({ c, t }); end = c.maxX;
+    if (chain.length >= 14) break;
+  }
+  const matched = a => heads.some(h => { const left = h.cx - h.hw; const refY = a.t === 'flat' ? a.c.maxY - 0.45 * iL : a.c.cy; return left > a.c.maxX - 0.2 * iL && left - a.c.maxX < 2.6 * iL && Math.abs(refY - h.cy) <= 0.45 * iL; });
+  let k = 0; while (k < chain.length && !matched(chain[k])) k++;
+  const ch = chain.slice(0, k);
+  if (!ch.length) return null;
+  let i = 0; while (i < ch.length && ch[i].t === 'natural') i++;
+  const rest = ch.slice(i);
+  if (rest.some(a => a.t !== rest[0].t || a.t === 'natural')) return null;
+  const n = rest.length; if (n > 7) return null;
+  const fifths = !n ? 0 : rest[0].t === 'sharp' ? n : -n;
+  return { fifths, end: ch[ch.length - 1].c.maxX, comps: ch.map(a => a.c) };
+}
+
+function extractCurves(s, ctx, xA, xB, yA, yB) {
+  const { thin, W } = ctx; const iL = s.iL;
+  const rw = xB - xA + 1, rh = yB - yA + 1;
+  const m = new Uint8Array(rw * rh);
+  for (let y = 0; y < rh; y++) for (let x = 0; x < rw; x++) m[y * rw + x] = thin[(y + yA) * W + x + xA];
+  const cc = labelCC(m, rw, rh, false);
+  const frags = [], wedges = [], arcs = [];
+  for (const c of cc.comps) {
+    if (!c || c.w < 0.35 * iL || c.h > 4 * iL || c.area < 0.15 * iL) continue;
+    const pts = [];
+    for (let x = c.minX; x <= c.maxX; x++) {
+      const runs = []; let st = -1;
+      for (let y = c.minY; y <= c.maxY + 1; y++) {
+        const on = y <= c.maxY && cc.lab[y * rw + x] === c.id;
+        if (on && st < 0) st = y; else if (!on && st >= 0) { runs.push([st, y - 1]); st = -1; }
+      }
+      if (runs.length) pts.push({ x: x + xA, y: (runs[0][0] + runs[0][1]) / 2 + yA, n: runs.length, gap: runs.length >= 2 ? runs[runs.length - 1][0] - runs[0][1] : 0, y2: (runs[runs.length - 1][0] + runs[runs.length - 1][1]) / 2 + yA });
+    }
+    if (pts.length < 3) continue;
+    const w = c.w;
+    if (w >= 2 * iL) {
+      const inner = pts.slice(Math.floor(pts.length * 0.2), Math.ceil(pts.length * 0.8));
+      const two = inner.filter(p => p.n >= 2).length / Math.max(1, inner.length);
+      if (two > 0.6) {
+        const g1 = pts[Math.floor(pts.length * 0.25)].gap, g2 = pts[Math.floor(pts.length * 0.9)].gap;
+        const y = (pts[0].y + pts[pts.length - 1].y2) / 2;
+        if (g2 > 1.8 * Math.max(1, g1)) { wedges.push({ type: 'crescendo', x0: c.minX + xA, x1: c.maxX + xA, y }); continue; }
+        if (g1 > 1.8 * Math.max(1, g2)) { wedges.push({ type: 'diminuendo', x0: c.minX + xA, x1: c.maxX + xA, y }); continue; }
+      }
+    }
+    frags.push({ minX: c.minX + xA, maxX: c.maxX + xA, pts });
+  }
+  frags.sort((a, b) => a.minX - b.minX);
+  const used = new Set();
+  for (let i = 0; i < frags.length; i++) {
+    if (used.has(i)) continue;
+    let ch = { minX: frags[i].minX, maxX: frags[i].maxX, pts: [...frags[i].pts] };
+    for (let j = i + 1; j < frags.length; j++) {
+      if (used.has(j)) continue;
+      const b = frags[j], last = ch.pts[ch.pts.length - 1];
+      const gap = b.minX - ch.maxX, ymid = (b.pts[0].y + last.y) / 2;
+      const onLine = (s.realLines || s.lines).some(L => Math.abs(L - ymid) <= 0.4 * iL);
+      if (gap >= -0.2 * iL && gap <= (onLine ? 2.6 : 0.6) * iL && Math.abs(b.pts[0].y - last.y) <= 0.5 * iL + 0.3 * Math.max(0, gap)) {
+        ch.pts.push(...b.pts); ch.maxX = b.maxX; used.add(j);
+      }
+    }
+    const w = ch.maxX - ch.minX, P = ch.pts;
+    if (w < 1.0 * iL) continue;
+    const a = P[Math.floor(P.length * 0.08)], b = P[Math.min(P.length - 1, Math.floor(P.length * 0.92))];
+    let dev = 0; const ds = [];
+    for (const p of P.slice(Math.floor(P.length * 0.25), Math.ceil(P.length * 0.75))) {
+      const t = (p.x - a.x) / Math.max(1, b.x - a.x), cy = a.y + (b.y - a.y) * t, d = p.y - cy;
+      ds.push(d); if (Math.abs(d) > Math.abs(dev)) dev = d;
+    }
+    const ys = P.map(p => p.y), h = Math.max(...ys) - Math.min(...ys);
+    if (Math.abs(dev) < Math.max(2, 0.12 * iL, 0.02 * w) || h > Math.max(3 * iL, 0.6 * w)) continue;
+    const consistent = ds.filter(d => Math.sign(d) === Math.sign(dev) && Math.abs(d) >= 0.3 * Math.abs(dev)).length / Math.max(1, ds.length);
+    if (consistent < 0.7) continue;
+    arcs.push({ xL: P[0].x, yL: P[0].y, xR: P[P.length - 1].x, yR: P[P.length - 1].y, w, bulge: dev < 0 ? 'up' : 'down' });
+  }
+  return { arcs, wedges };
+}
+
 function analyzeStaffSymbols(s, ctx) {
-  const { clean, chr, cvr, lab, comps, W, H } = ctx;
-  const iL = s.iL, hdr = s.header;
+  const { clean, chr, cvr, lab, W, H, textItems } = ctx;
+  const iL = s.iL, hdr = s.header, near = s.nearComps;
   const xA = Math.max(0, Math.round(hdr.headerEnd)), xB = Math.min(W - 1, Math.round(s.right + 0.5 * iL));
   const yA = Math.max(0, Math.round(s.bandTop)), yB = Math.min(H - 1, Math.round(s.bandBottom));
   const rw = xB - xA + 1, rh = yB - yA + 1;
-  const heads = [];
-  if (rw < 4 || rh < 4) return { heads: [], rests: [], accs: [], multis: [], events: [] };
+  const empty = { heads: [], rests: [], accs: [], multis: [], events: [], arcs: [], wedges: [], dyns: [], tupletMarks: [], changes: [], graces: [] };
+  if (rw < 4 || rh < 4) return empty;
 
-  // ---- filled noteheads: thick in both directions after staff/ledger removal
+  // ---- filled noteheads
   const m = new Uint8Array(rw * rh);
   for (let y = 0; y < rh; y++) for (let x = 0; x < rw; x++) {
     const i = (y + yA) * W + (x + xA);
     if (clean[i] && chr[i] >= 0.5 * iL && cvr[i] >= 0.45 * iL) m[y * rw + x] = 1;
   }
   const mcc = labelCC(m, rw, rh, false);
-  const fillCand = [];
+  let fillCand = [];
   for (const c of mcc.comps) {
     if (!c) continue;
     if (c.w < 0.75 * iL || c.w > 2.7 * iL || c.h < 0.55 * iL || c.h > 6 * iL) continue;
     const fill = c.area / (c.w * c.h);
     if (fill < 0.45) continue;
-    if (fill > 0.88 && c.h < 0.85 * iL && c.w < 1.8 * iL) continue; // rectangle: whole/half rest
+    if (fill > 0.88 && c.h < 0.85 * iL && c.w < 1.8 * iL) continue;
+    if (c.h <= 1.4 * iL && c.w >= 1.2 * iL) { // beam segment lying on a staff line: uniform column heights
+      const hs = [];
+      for (let x = c.minX + Math.floor(c.w * 0.15); x <= c.minX + Math.ceil(c.w * 0.85); x++) { let n = 0; for (let y = c.minY; y <= c.maxY; y++) if (mcc.lab[y * rw + x] === c.id) n++; hs.push(n); }
+      if (hs.length && Math.min(...hs) / Math.max(...hs) > 0.8) continue;
+    }
     const nC = Math.max(1, Math.round(c.w / (1.3 * iL)));
     for (let k = 0; k < nC; k++) {
       const sx0 = c.minX + Math.floor(k * c.w / nC), sx1 = c.minX + Math.floor((k + 1) * c.w / nC) - 1, sw = sx1 - sx0 + 1;
+      if (sw < 0.7 * iL) continue;
       let runStart = -1;
       for (let y = c.minY; y <= c.maxY + 1; y++) {
         let cnt = 0;
@@ -747,9 +924,8 @@ function analyzeStaffSymbols(s, ctx) {
               let mnx = sx1, mxx = sx0;
               for (let x = sx0; x <= sx1; x++) if (mcc.lab[Math.round(cy) * rw + x] === c.id) { if (x < mnx) mnx = x; if (x > mxx) mxx = x; }
               if (!n) continue;
-              const hw = Math.max(0.45 * iL, (mxx - mnx + 1) / 2);
-              if (sw < 0.7 * iL) continue;
-              fillCand.push({ cx: sx / n + xA, cy: cy + yA, hw: Math.min(hw, 0.8 * iL), hollow: false });
+              const hw = Math.max(0.3 * iL, (mxx - mnx + 1) / 2);
+              fillCand.push({ cx: sx / n + xA, cy: cy + yA, hw: Math.min(hw, 0.8 * iL), hh: hr2 / kk, hollow: false });
             }
           }
           runStart = -1;
@@ -757,12 +933,11 @@ function analyzeStaffSymbols(s, ctx) {
       }
     }
   }
-
-  // ---- hollow noteheads: enclosed holes surrounded by a ring of notehead size
+  // ---- hollow noteheads (enclosed holes)
   const inv = new Uint8Array(rw * rh);
   for (let y = 0; y < rh; y++) for (let x = 0; x < rw; x++) inv[y * rw + x] = clean[(y + yA) * W + (x + xA)] ? 0 : 1;
   const icc = labelCC(inv, rw, rh, true);
-  const hollowCand = [];
+  let hollowCand = [];
   for (const c of icc.comps) {
     if (!c || c.touches) continue;
     if (c.area < 0.06 * iL * iL || c.area > 0.8 * iL * iL) continue;
@@ -773,15 +948,83 @@ function analyzeStaffSymbols(s, ctx) {
     const outerW = L.inner + L.ring + R.inner + R.ring, outerH = U.inner + U.ring + D.inner + D.ring;
     if (outerW < 0.85 * iL || outerW > 2.2 * iL || outerH < 0.55 * iL || outerH > 1.5 * iL) continue;
     if (L.ring > 0.65 * iL || U.ring > 0.5 * iL || D.ring > 0.5 * iL) continue;
-    const ocx = cx + (R.inner + R.ring - L.inner - L.ring) / 2;
-    hollowCand.push({ cx: ocx, cy: cy + (D.inner + D.ring - U.inner - U.ring) / 2, hw: outerW / 2, hollow: true, ringX: cx - L.inner - 1, outerW });
+    hollowCand.push({ cx: cx + (R.inner + R.ring - L.inner - L.ring) / 2, cy: cy + (D.inner + D.ring - U.inner - U.ring) / 2, hw: outerW / 2, hollow: true, ringX: cx - L.inner - 1, outerW });
   }
-  for (const h of hollowCand) heads.push(h);
+
+  // ---- mid-line clef / key / time changes (found before notes so their glyphs are not read as notes)
+  const changes = [], exRects = [], usedComp = new Set();
+  const addEx = c => { exRects.push({ x0: c.minX - 0.2 * iL, x1: c.maxX + 0.2 * iL, y0: c.minY - 0.2 * iL, y1: c.maxY + 0.2 * iL }); usedComp.add(c.id); };
+  const inEx = (x, y) => exRects.some(r => x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1);
+  for (const c of near) {
+    if (c.minX < hdr.headerEnd + 0.4 * iL || c.maxX > xB + iL) continue;
+    const cl = clefShape(c, s, near, lab, W);
+    if (cl) { changes.push({ kind: 'clef', x: c.minX, clef: cl.clef, c }); addEx(c); cl.extra.forEach(addEx); }
+  }
+  const preHeads = [...hollowCand, ...fillCand];
+  for (const b of s.bars) {
+    let x0 = b.x1 + 0.1 * iL;
+    if (!s.oneLine) {
+      const kc = detectKeyChange(s, near, x0, lab, W, preHeads);
+      if (kc) { changes.push({ kind: 'key', x: b.x1 + 0.1 * iL, fifths: kc.fifths, comps: kc.comps }); kc.comps.forEach(addEx); x0 = kc.end + 0.1 * iL; }
+    }
+    const tg = detectTimeSig(s, near, x0, lab, W, textItems, true);
+    if (tg) { changes.push({ kind: 'time', x: b.x1 + 0.15 * iL, time: tg.time, comps: tg.comps }); tg.comps.forEach(addEx); }
+  }
+  hollowCand = hollowCand.filter(h => !inEx(h.cx, h.cy));
+  fillCand = fillCand.filter(h => !inEx(h.cx, h.cy));
+
+  function findStemG(h) {
+    let best = null;
+    for (const dir of ['up', 'down']) {
+      const xa = dir === 'up' ? h.cx + h.hw - 0.35 * iL : h.cx - h.hw - 0.2 * iL, xb = dir === 'up' ? h.cx + h.hw + 0.2 * iL : h.cx - h.hw + 0.35 * iL, step = dir === 'up' ? -1 : 1;
+      for (let x = Math.round(xa); x <= Math.round(xb); x++) {
+        if (x < 0 || x >= W) continue;
+        let y = Math.round(h.cy + step * 0.3 * iL), gaps = 0, last = y;
+        if (y < 0 || y >= H || !clean[y * W + x]) continue;
+        while (y > 0 && y < H - 1) { if (clean[y * W + x]) { gaps = 0; last = y; } else if (++gaps > 2) break; y += step; }
+        const len = Math.abs(last - h.cy);
+        if (len < 1.3 * iL || len > 3.0 * iL) continue;
+        if (chr[Math.round((h.cy + last) / 2) * W + x] > 0.45 * iL) continue;
+        if (!best || len > best.len) best = { x, dir, len, endY: last };
+      }
+    }
+    return best;
+  }
+  // ---- separate grace-size heads from normal heads
+  const medHW = fillCand.length >= 4 ? median(fillCand.map(h => h.hw)) : 0.6 * iL;
+  const medHH = fillCand.length >= 4 ? median(fillCand.map(h => h.hh)) : 0.95 * iL;
+  let graceCand = fillCand.filter(h => h.hw < 0.78 * medHW && h.hh < 0.8 * medHH);
+  fillCand = fillCand.filter(h => !graceCand.includes(h));
+  {
+    const gm = new Uint8Array(rw * rh);
+    for (let y = 0; y < rh; y++) for (let x = 0; x < rw; x++) { const i = (y + yA) * W + (x + xA); if (clean[i] && chr[i] >= 0.28 * iL && cvr[i] >= 0.25 * iL) gm[y * rw + x] = 1; }
+    const gcc = labelCC(gm, rw, rh, false);
+    for (const c of gcc.comps) {
+      if (!c || c.w < 0.4 * iL || c.w > 1.1 * iL || c.h < 0.28 * iL || c.h > 0.75 * iL || c.area / (c.w * c.h) < 0.5) continue;
+      const g = { cx: c.cx + xA, cy: c.cy + yA, hw: c.w / 2, hh: c.h, hollow: false };
+      if (inEx(g.cx, g.cy)) continue;
+      if (fillCand.some(h => Math.abs(h.cx - g.cx) < 0.9 * iL && Math.abs(h.cy - g.cy) < 0.7 * iL)) continue;
+      if (hollowCand.some(h => Math.abs(h.cx - g.cx) < 0.9 * iL && Math.abs(h.cy - g.cy) < 0.7 * iL)) continue;
+      if (graceCand.some(h => Math.abs(h.cx - g.cx) < 0.4 * iL && Math.abs(h.cy - g.cy) < 0.4 * iL)) continue;
+      graceCand.push(g);
+    }
+  }
+  // a grace head needs a short stem and a main note just to its right; otherwise it goes back to normal heads
+  const mainsPre = [...fillCand, ...hollowCand];
+  const graceOk = [];
+  for (const g of graceCand) {
+    const st = findStemG(g);
+    const hasMain = mainsPre.some(h => h.cx > g.cx + 0.6 * iL && h.cx - g.cx < 4.5 * iL);
+    if (st && hasMain) { g.stem = st; graceOk.push(g); } else if (g.hh >= 0.5 * iL && g.hw >= 0.38 * iL) fillCand.push(g);
+  }
+  if (window.__debugOMR) s.graceDbg = { cand: graceCand.map(g => [Math.round(g.cx), Math.round(g.cy), +(g.hw / iL).toFixed(2), +(g.hh / iL).toFixed(2), !!g.stem]) };
+  graceCand = graceOk;
+  const heads = [...hollowCand];
   for (const f of fillCand) if (!hollowCand.some(h => Math.abs(h.cx - f.cx) < 0.6 * iL && Math.abs(h.cy - f.cy) < 0.5 * iL)) heads.push(f);
 
-  // ---- stems, flags/beams, dots
-  const findStem = (h) => {
-    let best = null;
+  // ---- stems, beams/flags, dots
+  const findStem = (h, minLen, maxLen) => {
+    const res = {};
     for (const dir of ['up', 'down']) {
       const xa = dir === 'up' ? h.cx + h.hw - 0.35 * iL : h.cx - h.hw - 0.2 * iL;
       const xb = dir === 'up' ? h.cx + h.hw + 0.2 * iL : h.cx - h.hw + 0.35 * iL;
@@ -789,23 +1032,24 @@ function analyzeStaffSymbols(s, ctx) {
       for (let x = Math.round(xa); x <= Math.round(xb); x++) {
         if (x < 0 || x >= W) continue;
         let y = Math.round(h.cy + step * 0.3 * iL), gaps = 0, last = y;
-        if (!clean[y * W + x]) continue;
+        if (y < 0 || y >= H || !clean[y * W + x]) continue;
         while (y > 0 && y < H - 1) { if (clean[y * W + x]) { gaps = 0; last = y; } else if (++gaps > 2) break; y += step; }
         const len = Math.abs(last - h.cy);
-        if (len < 2.2 * iL) continue;
+        if (len < minLen || (maxLen && len > maxLen)) continue;
         const midY = Math.round((h.cy + last) / 2);
         if (chr[midY * W + x] > 0.45 * iL) continue;
-        if (!best || len > best.len) best = { x, dir, len, endY: last };
+        if (!res[dir] || len > res[dir].len) res[dir] = { x, dir, len, endY: last };
       }
     }
-    return best;
+    if (res.up && res.down) { const [a, b] = res.up.len >= res.down.len ? [res.up, res.down] : [res.down, res.up]; return { stem: a, stem2: b.len >= 2.5 * iL ? b : null }; }
+    return { stem: res.up || res.down || null, stem2: null };
   };
-  const countBeams = (st) => {
+  const countBeams = (st, offs) => {
     const sgn = st.dir === 'up' ? 1 : -1;
     const maxScan = Math.min(2.8 * iL, st.len - 1.3 * iL);
     if (maxScan < 0.3 * iL) return 0;
     let best = 0;
-    for (const off of [0.45, 0.75, -0.45, -0.75]) {
+    for (const off of offs) {
       const x = Math.round(st.x + off * iL); if (x < 0 || x >= W) continue;
       let cnt = 0, run = 0;
       for (let t = Math.round(-0.25 * iL); t <= maxScan; t++) {
@@ -817,77 +1061,97 @@ function analyzeStaffSymbols(s, ctx) {
     }
     return Math.min(best, 3);
   };
+  const OFFS = [0.45, 0.75, -0.45, -0.75];
   const compAt = (x, y) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return 0; return lab[y * W + x]; };
-  const near = s.nearComps;
   const findDots = (h, stem) => {
     let n = 0, fromX = h.cx + h.hw + 0.1 * iL;
     if (stem && stem.dir === 'up') fromX = Math.max(fromX, stem.x + 0.15 * iL);
     for (let pass = 0; pass < 2; pass++) {
       const d = near.find(c => c.minX >= fromX && c.minX <= fromX + 1.1 * iL && c.w >= 0.18 * iL && c.w <= 0.65 * iL && c.h >= 0.18 * iL && c.h <= 0.65 * iL && c.cy >= h.cy - 0.85 * iL && c.cy <= h.cy + 0.4 * iL && c.area / (c.w * c.h) > 0.5);
-      if (!d) break; n++; fromX = d.maxX + 0.1 * iL;
+      if (!d) break; n++; fromX = d.maxX + 0.1 * iL; usedComp.add(d.id);
     }
     return n;
   };
   const headComp = new Set();
+  const posOf = cy => Math.round((s.bottom - cy) / (iL / 2));
   for (const h of heads) {
-    h.pos = Math.round((s.bottom - h.cy) / (iL / 2));
-    h.stem = findStem(h);
-    h.beams = h.stem && !h.hollow ? countBeams(h.stem) : 0;
+    h.pos = posOf(h.cy);
+    const st = findStem(h, 2.2 * iL);
+    h.stem = st.stem; h.stem2 = st.stem2;
+    h.beams = h.stem && !h.hollow ? countBeams(h.stem, OFFS) : 0;
+    h.beams2 = h.stem2 && !h.hollow ? countBeams(h.stem2, OFFS) : 0;
     const id = h.hollow ? compAt(h.ringX, h.cy) : compAt(h.cx, h.cy);
     if (id) headComp.add(id);
-    if (h.stem) { const sid = compAt(h.stem.x, (h.cy + h.stem.endY) / 2); if (sid) headComp.add(sid); }
+    for (const stx of [h.stem, h.stem2]) if (stx) { const sid = compAt(stx.x, (h.cy + stx.endY) / 2); if (sid) headComp.add(sid); }
   }
-  // heads without stems next to a stemmed chord join that chord (seconds in chords)
   for (const h of heads) if (!h.stem && !h.hollow) {
     const o = heads.find(g => g.stem && Math.abs(g.stem.x - h.cx) <= h.hw + 0.35 * iL && Math.abs(g.cy - h.cy) < 1.6 * iL);
     if (o) { h.stem = o.stem; h.beams = o.beams; }
   }
   const validHeads = heads.filter(h => h.pos >= -14 && h.pos <= 22);
+  const graces = [];
+  for (const g of graceCand) {
+    g.pos = posOf(g.cy);
+    g.beams = Math.max(1, countBeams(g.stem, [0.35, 0.55, -0.35, -0.55]));
+    const id = compAt(g.cx, g.cy); if (id) headComp.add(id);
+    const sid = compAt(g.stem.x, (g.cy + g.stem.endY) / 2); if (sid) headComp.add(sid);
+    graces.push(g);
+  }
 
-  // ---- accidentals, rests, multi-measure rests from components
+  // ---- accidentals, rests, multi-measure rests
   const accs = [], rests = [], multis = [];
+  const wholeRefY = s.oneLine ? s.mid : s.lines[1], halfRefY = s.oneLine ? s.mid : s.lines[2];
   for (const c of near) {
-    if (c.maxX < xA || c.minX > xB || headComp.has(c.id)) continue;
+    if (c.maxX < xA || c.minX > xB || headComp.has(c.id) || usedComp.has(c.id) || inEx(c.cx, c.cy)) continue;
     const acc = classifyAccidental(c, iL, lab, W);
     if (acc) { accs.push({ c, type: acc, used: false }); continue; }
     const fill = c.area / (c.w * c.h);
-    // multi-measure rest bar
     if (c.w >= 2.5 * iL && c.h >= 0.4 * iL && c.h <= 2.6 * iL && Math.abs(c.cy - s.mid) <= 0.7 * iL) {
       let rows = 0;
       for (let y = Math.round(s.mid - 0.6 * iL); y <= Math.round(s.mid + 0.6 * iL); y++) { let cnt = 0; for (let x = c.minX; x <= c.maxX; x++) if (lab[y * W + x] === c.id) cnt++; if (cnt > 0.7 * c.w) rows++; }
       if (rows >= 0.3 * iL) {
         const r = { x0: c.minX - 0.3 * iL, x1: c.maxX + 0.3 * iL, y0: s.top - 3.2 * iL, y1: s.top - 0.1 * iL };
-        let count = textNumberInRect(ctx.textItems, r);
+        let count = textNumberInRect(textItems, r);
         if (!count) {
           const dg = near.filter(d => d.cx >= r.x0 && d.cx <= r.x1 && d.cy >= r.y0 && d.cy <= r.y1 && d.h >= 0.9 * iL && d.h <= 3 * iL);
           count = readNumberFromComps(dg, lab, W);
+          dg.forEach(d => usedComp.add(d.id));
         }
         multis.push({ c, x: c.minX, count: count && count < 400 ? count : null });
         continue;
       }
     }
-    if (c.cy < s.top - 0.6 * iL || c.cy > s.bottom + 0.6 * iL) continue;
-    // whole / half rests (filled rectangles hanging from line 4 / sitting on line 3)
+    if (c.cy < s.top - 1.2 * iL || c.cy > s.bottom + 1.2 * iL) continue;
     if (c.w >= 0.8 * iL && c.w <= 1.8 * iL && c.h >= 0.3 * iL && c.h <= 0.85 * iL && fill > 0.8) {
-      if (Math.abs(c.minY - s.lines[1]) <= 0.35 * iL) { rests.push({ c, x: c.minX, type: 'whole' }); continue; }
-      if (Math.abs(c.maxY - s.lines[2]) <= 0.35 * iL) { rests.push({ c, x: c.minX, type: 'half' }); continue; }
+      if (Math.abs(c.minY - wholeRefY) <= 0.35 * iL) { rests.push({ c, x: c.minX, type: 'whole' }); continue; }
+      if (Math.abs(c.maxY - halfRefY) <= 0.35 * iL) { rests.push({ c, x: c.minX, type: 'half' }); continue; }
+      if (!s.oneLine) { // two-voice rests sit on other lines
+        const li = s.lines.findIndex(L => Math.abs(c.minY - L) <= 0.3 * iL);
+        if (li >= 0 && Math.abs(c.cy - s.mid) > 0.9 * iL) { rests.push({ c, x: c.minX, type: 'whole' }); continue; }
+        const lj = s.lines.findIndex(L => Math.abs(c.maxY - L) <= 0.3 * iL);
+        if (lj >= 0 && Math.abs(c.cy - s.mid) > 0.9 * iL) { rests.push({ c, x: c.minX, type: 'half' }); continue; }
+      }
     }
     const { maxLen } = strokesOf(c, lab, W, 9999);
-    if (c.h >= 2.0 * iL && c.h <= 3.6 * iL && c.w >= 0.5 * iL && c.w <= 1.4 * iL && maxLen < 1.4 * iL && Math.abs(c.cy - s.mid) < 1.2 * iL && fill > 0.25) {
+    { // pieces of ties/slurs are not rests
+      let tn = 0; for (let y = c.minY; y <= c.maxY; y++) for (let x = c.minX; x <= c.maxX; x++) { const i = y * W + x; if (lab[i] === c.id && ctx.thin[i]) tn++; }
+      if (tn > 0.45 * c.area) continue;
+    }
+    if (c.h >= 2.0 * iL && c.h <= 3.6 * iL && c.w >= 0.5 * iL && c.w <= 1.4 * iL && maxLen < 1.4 * iL && Math.abs(c.cy - s.mid) < 2.0 * iL && fill > 0.25) {
       rests.push({ c, x: c.minX, type: 'quarter' }); continue;
     }
-    if (c.h >= 1.2 * iL && c.h < 2.0 * iL && c.w >= 0.55 * iL && c.w <= 1.4 * iL && maxLen < 1.5 * iL && Math.abs(c.cy - s.mid) < 1.3 * iL) {
+    if (c.h >= 1.2 * iL && c.h < 2.0 * iL && c.w >= 0.55 * iL && c.w <= 1.4 * iL && maxLen < 1.5 * iL && Math.abs(c.cy - s.mid) < 2.0 * iL) {
       let tl = 0, tot = 0;
       for (let y = c.minY; y < c.minY + c.h * 0.4; y++) for (let x = c.minX; x < c.minX + c.w * 0.55; x++) { tot++; if (lab[y * W + x] === c.id) tl++; }
       if (tot && tl / tot > 0.3) { rests.push({ c, x: c.minX, type: 'eighth' }); continue; }
     }
   }
-  // rest dots
   for (const r of rests) {
+    usedComp.add(r.c.id);
     const d = near.find(c => c.minX > r.c.maxX && c.minX < r.c.maxX + 1.0 * iL && c.w <= 0.65 * iL && c.h <= 0.65 * iL && c.w >= 0.18 * iL && Math.abs(c.cy - r.c.cy) < 1.2 * iL && c.area / (c.w * c.h) > 0.5);
-    r.dots = d ? 1 : 0;
+    r.dots = d ? 1 : 0; if (d) usedComp.add(d.id);
   }
-  // accidentals → heads
+  multis.forEach(mr => usedComp.add(mr.c.id));
   const sortedHeads = [...validHeads].sort((a, b) => a.cx - b.cx);
   for (const h of sortedHeads) {
     let best = null, bd = Infinity;
@@ -899,10 +1163,10 @@ function analyzeStaffSymbols(s, ctx) {
       if (Math.abs(refY - h.cy) > 0.45 * iL) continue;
       const d = left - a.c.maxX; if (d < bd) { bd = d; best = a; }
     }
-    if (best) { best.used = true; h.acc = best.type; }
+    if (best) { best.used = true; h.acc = best.type; usedComp.add(best.c.id); }
   }
 
-  // ---- group heads into chords/events
+  // ---- chords → events
   const events = [];
   for (const h of sortedHeads) {
     let g = null;
@@ -919,64 +1183,255 @@ function analyzeStaffSymbols(s, ctx) {
     e.dots = findDots(right, e.stem);
     e.x = Math.min(...e.heads.map(h => h.cx));
   }
-  for (const r of rests) events.push({ kind: 'rest', x: r.x, type: r.type, dots: r.dots, c: r.c });
+  // grace notes must precede a main note closely
+  const gEvents = [];
+  for (const g of graces.sort((a, b) => a.cx - b.cx)) {
+    const main = events.find(e => e.x > g.cx && e.x - g.cx < 4.5 * iL);
+    if (!main) continue;
+    if (accs.some(a => g.cx >= a.c.minX - 0.2 * iL && g.cx <= a.c.maxX + 0.2 * iL && g.cy >= a.c.minY - 0.2 * iL && g.cy <= a.c.maxY + 0.2 * iL)) continue; // part of an accidental
+    const prev = gEvents.find(e => e.stem && Math.abs(e.stem.x - g.stem.x) <= 0.3 * iL);
+    if (prev) { if (prev.heads.some(h => Math.abs(h.cy - g.cy) <= 1.6 * iL)) prev.heads.push(g); continue; } // a blob at the far end of the stem is the flag
+    gEvents.push({ kind: 'note', grace: true, x: g.cx, heads: [g], stem: g.stem, type: BEAM_TYPE[Math.min(3, g.beams)], beams: g.beams, dots: 0, hollow: false });
+  }
+  gEvents.forEach((e, i) => { const single = !gEvents.some((o, j) => j !== i && Math.abs(o.x - e.x) < 2.2 * iL); e.slash = single; if (single) e.beams = 0; });
+  events.push(...gEvents);
+  for (const r of rests) {
+    // a rest far from the middle line only makes sense as the second voice under/over a sounding note
+    if (Math.abs((r.c.minY + r.c.maxY) / 2 - s.mid) > 1.0 * iL && !events.some(e => e.kind === 'note' && !e.grace && Math.abs(e.x - (r.c.minX + r.c.maxX) / 2) < 1.2 * iL)) continue;
+    events.push({ kind: 'rest', x: r.x, type: r.type, dots: r.dots, c: r.c });
+  }
   for (const mr of multis) events.push({ kind: 'multirest', x: mr.x, count: mr.count });
-  events.sort((a, b) => a.x - b.x);
-  // beam connections between consecutive notes
-  for (let i = 0; i + 1 < events.length; i++) {
-    const a = events[i], b = events[i + 1];
-    if (a.kind !== 'note' || b.kind !== 'note' || !a.stem || !b.stem || !a.beams || !b.beams || a.stem.dir !== b.stem.dir) continue;
+
+  // ---- tuplet numbers
+  const tupletMarks = [];
+  const noteEvs = events.filter(e => e.kind === 'note' && !e.grace);
+  const nearNote = (x, y) => noteEvs.some(e => Math.abs(e.x - x) < 4 * iL && (Math.abs((e.stem ? e.stem.endY : e.heads[0].cy) - y) < 2.5 * iL || e.heads.some(h => Math.abs(h.cy - y) < 2.5 * iL)));
+  for (const c of near) {
+    if (c.maxX < xA || c.minX > xB || headComp.has(c.id) || usedComp.has(c.id) || inEx(c.cx, c.cy)) continue;
+    if (c.h < 0.8 * iL || c.h > 2.2 * iL || c.w < 0.4 * iL || c.w > 1.6 * iL) continue;
+    if (c.cy > s.top + 0.3 * iL && c.cy < s.bottom - 0.3 * iL) continue;
+    if (!nearNote(c.cx, c.cy)) continue;
+    const r = classifyDigitComp(c, lab, W);
+    if ([3, 5, 6, 7].includes(r.d) && r.score < 0.15) { tupletMarks.push({ x: c.cx, y: c.cy, n: r.d, c }); usedComp.add(c.id); }
+  }
+  for (const it of textItems || []) {
+    const str = it.str.trim(); if (!str) continue;
+    let n = null;
+    if (/^[3567]$/.test(str)) n = +str;
+    else if ([...str].length === 1) { const cp = str.codePointAt(0); if (cp >= 0xE883 && cp <= 0xE887) n = cp - 0xE880; }
+    if (!n || ![3, 5, 6, 7].includes(n)) continue;
+    const x = it.x + it.w / 2, y = it.baseline - it.h * 0.35;
+    if (x < xA || x > xB || y < s.bandTop || y > s.bandBottom) continue;
+    if (!nearNote(x, y) || tupletMarks.some(t => Math.abs(t.x - x) < iL)) continue;
+    tupletMarks.push({ x, y, n });
+  }
+
+  // ---- dynamics (text layer first, then raster word templates)
+  const dyns = [];
+  for (const it of textItems || []) {
+    let w = '';
+    for (const ch of it.str.trim()) { const cp = ch.codePointAt(0); w += SMUFL_DYN[cp] || ch; }
+    w = w.toLowerCase().replace(/[^a-z]/g, '');
+    if (!DYN_RX.test(w)) continue;
+    const y = it.baseline - it.h * 0.3, x = it.x;
+    if (x < xA - iL || x > xB || y < s.bandTop || y > s.bandBottom || (y > s.top && y < s.bottom)) continue;
+    dyns.push({ x, y, word: w });
+  }
+  {
+    const cand = near.filter(c => c.maxX >= xA && c.minX <= xB && !headComp.has(c.id) && !usedComp.has(c.id) && !inEx(c.cx, c.cy)
+      && (c.cy < s.top - 0.4 * iL || c.cy > s.bottom + 0.4 * iL) && c.h >= 0.55 * iL && c.h <= 2.6 * iL && c.w >= 0.3 * iL && c.w <= 3.2 * iL)
+      .sort((a, b) => a.minX - b.minX);
+    const groups = [];
+    for (const c of cand) {
+      const g = groups.find(G => c.minX - G.maxX <= 0.45 * iL && c.minX >= G.minX && Math.abs(c.cy - G.cy) <= 0.8 * iL);
+      if (g) { g.items.push(c); g.maxX = Math.max(g.maxX, c.maxX); } else groups.push({ items: [c], minX: c.minX, maxX: c.maxX, cy: c.cy });
+    }
+    for (const g of groups) {
+      if (g.maxX - g.minX > 7 * iL || g.items.length > 5) continue;
+      if (dyns.some(d => Math.abs(d.x - g.minX) < 2 * iL)) continue;
+      const r = classifyDynGroup(g.items, lab, W);
+      if (window.__debugOMR) (s.dynDbg = s.dynDbg || []).push([Math.round(g.minX), Math.round(g.cy), r.word, +r.score.toFixed(3), g.items.length]);
+      if (r.score < 0.075) { dyns.push({ x: g.minX, y: g.cy, word: r.word, comps: g.items }); g.items.forEach(c => usedComp.add(c.id)); }
+    }
+  }
+
+  // ---- beams between notes (same stem direction, same grace-ness)
+  const noteList = events.filter(e => e.kind === 'note' && e.stem).sort((a, b) => a.x - b.x);
+  for (let i = 0; i < noteList.length; i++) {
+    const a = noteList[i]; if (!a.beams) continue;
+    const b = noteList.slice(i + 1).find(e => e.stem.dir === a.stem.dir && !!e.grace === !!a.grace);
+    if (!b || !b.beams) continue;
     const dx = b.stem.x - a.stem.x; if (dx <= 0.5 * iL || dx > 14 * iL) continue;
     let ok = 0;
     for (let k = 1; k <= 4; k++) {
       const t = k / 5, x = Math.round(a.stem.x + dx * t), y = a.stem.endY + (b.stem.endY - a.stem.endY) * t;
       let run = 0, bestRun = 0;
       for (let yy = Math.round(y - 0.7 * iL); yy <= Math.round(y + 0.7 * iL); yy++) { if (yy >= 0 && yy < H && clean[yy * W + x]) { run++; bestRun = Math.max(bestRun, run); } else run = 0; }
-      if (bestRun >= 0.3 * iL) ok++;
+      if (bestRun >= (a.grace ? 0.18 : 0.3) * iL) ok++;
     }
-    if (ok >= 4) a.beamNext = true;
+    if (ok >= 4) a.beamTo = b;
   }
-  return { heads: validHeads, rests, accs, multis, events };
+
+  // ---- ties, slurs, hairpins
+  for (const h of [...validHeads, ...graces]) {
+    const rx = h.hw + 0.25 * iL, ry = 0.7 * iL;
+    for (let y = Math.max(0, Math.round(h.cy - ry)); y <= Math.min(H - 1, Math.round(h.cy + ry)); y++) for (let x = Math.max(0, Math.round(h.cx - rx)); x <= Math.min(W - 1, Math.round(h.cx + rx)); x++) ctx.thin[y * W + x] = 0;
+  }
+  const { arcs, wedges } = extractCurves(s, ctx, Math.max(0, xA - Math.round(1.5 * iL)), xB, yA, yB);
+  const mains = events.filter(e => e.kind === 'note' && !e.grace).sort((a, b) => a.x - b.x);
+  const rightEdge = e => Math.max(...e.heads.map(h => h.cx + h.hw));
+  const leftEdge = e => Math.min(...e.heads.map(h => h.cx - h.hw));
+  const vdist = (e, y) => Math.min(...e.heads.map(h => Math.abs(h.cy - y)), e.stem ? Math.abs(e.stem.endY - y) : Infinity);
+  const pick = (arc, side) => {
+    let best = null, bd = Infinity;
+    for (const e of mains) {
+      const dx = side === 'L' ? arc.xL - rightEdge(e) : leftEdge(e) - arc.xR;
+      if (dx < -1.2 * iL || dx > 1.4 * iL) continue;
+      const dy = vdist(e, side === 'L' ? arc.yL : arc.yR); if (dy > 2.4 * iL) continue;
+      const d = Math.abs(dx) + 0.5 * dy; if (d < bd) { bd = d; best = e; }
+    }
+    return best;
+  };
+  for (const arc of arcs) {
+    const L = pick(arc, 'L'), R = pick(arc, 'R');
+    if (L && R && L !== R && R.x > L.x) {
+      const between = mains.some(e => e !== L && e !== R && e.x > L.x + 0.3 * iL && e.x < R.x - 0.3 * iL && (!e.stem || !L.stem || e.stem.dir === L.stem.dir));
+      const common = L.heads.filter(h => R.heads.some(r => r.pos === h.pos));
+      if (!between && common.length && arc.w < 10 * iL) {
+        const h = common.reduce((a, b) => (Math.abs(a.cy - arc.yL) < Math.abs(b.cy - arc.yL) ? a : b));
+        h.tieStart = true; arc.kind = 'tie'; continue;
+      }
+      L.slurStart = (L.slurStart || 0) + 1; R.slurStop = (R.slurStop || 0) + 1; arc.kind = 'slur';
+    } else if (L && !R && arc.xR > s.right - 2 * iL) {
+      const h = L.heads.reduce((a, b) => (Math.abs(a.cy - arc.yL) < Math.abs(b.cy - arc.yL) ? a : b));
+      if (arc.w < 4 * iL) { h.tieStart = true; arc.kind = 'tie'; } else { L.slurStart = (L.slurStart || 0) + 1; arc.kind = 'slur'; }
+    } else if (!L && R && arc.xL < hdr.headerEnd + 2 * iL) {
+      if (arc.w >= 4 * iL) { R.slurStop = (R.slurStop || 0) + 1; arc.kind = 'slur'; } else arc.kind = 'tie';
+    }
+  }
+  for (const c of changes) events.push(c);
+  for (const d of dyns) events.push({ kind: 'dyn', x: d.x, word: d.word, y: d.y });
+  for (const w of wedges) { events.push({ kind: 'wedge', x: w.x0, wtype: w.type, y: w.y }); events.push({ kind: 'wedgeStop', x: w.x1, y: w.y }); }
+  events.sort((a, b) => a.x - b.x);
+  return { heads: validHeads, rests, accs, multis, events, arcs, wedges, dyns, tupletMarks, changes, graces: gEvents };
+}
+
+/* Two voices on one staff: stems up = voice 1, stems down = voice 2, when they sound together */
+function splitVoices(evs, s) {
+  const iL = s.iL;
+  const notes = evs.filter(e => e.kind === 'note' && !e.grace);
+  const up = notes.filter(e => e.stem && e.stem.dir === 'up'), dn = notes.filter(e => e.stem && e.stem.dir === 'down');
+  const shared = notes.filter(e => e.heads.some(h => h.stem2));
+  const sim = shared.length > 0 || up.some(u => dn.some(d => Math.abs(u.x - d.x) < 1.0 * iL));
+  if (!sim) { evs.forEach(e => { e.voice = 1; }); return false; }
+  const extra = [];
+  for (const e of evs) {
+    if (e.kind === 'note') {
+      e.voice = !e.stem ? (e.heads[0].pos >= 4 ? 1 : 2) : (e.stem.dir === 'up' ? 1 : 2);
+      for (const h of e.heads) if (h.stem2) {
+        extra.push({ kind: 'note', x: h.cx, heads: [{ ...h, acc: h.acc }], stem: h.stem2, hollow: h.hollow, type: h.hollow ? 'half' : BEAM_TYPE[h.beams2], beams: h.hollow ? 0 : h.beams2, dots: e.dots, voice: e.voice === 1 ? 2 : 1 });
+      }
+    } else if (e.kind === 'rest') {
+      const cy = e.c ? (e.c.minY + e.c.maxY) / 2 : s.mid;
+      e.voice = cy < s.mid - 0.4 * iL ? 1 : cy > s.mid + 0.4 * iL ? 2 : 1;
+    } else e.voice = 1;
+  }
+  evs.push(...extra); evs.sort((a, b) => a.x - b.x);
+  return true;
+}
+const isTimed = e => (e.kind === 'note' && !e.grace) || e.kind === 'rest';
+function plainDur(e) { const b = TYPE_DIV[e.type] || DIV; return e.dots === 2 ? b * 1.75 : e.dots === 1 ? b * 1.5 : b; }
+function evDur(e) { if (!isTimed(e)) return 0; let d = plainDur(e); if (e.tuplet) d = d * e.tuplet.normal / e.tuplet.actual; return Math.round(d); }
+function applyTuplets(evs, marks, s) {
+  for (const mk of marks) {
+    const timed = evs.filter(isTimed);
+    let nearE = null, nd = Infinity;
+    for (const e of timed) {
+      if (e.kind !== 'note') continue;
+      const yRef = e.stem ? e.stem.endY : e.heads[0].cy;
+      const d = Math.abs(e.x - mk.x) + 0.5 * Math.abs(yRef - mk.y); if (d < nd) { nd = d; nearE = e; }
+    }
+    if (!nearE || Math.abs(nearE.x - mk.x) > 5 * s.iL) continue;
+    const v = nearE.voice || 1;
+    const list = timed.filter(e => (e.voice || 1) === v).sort((a, b) => a.x - b.x);
+    const n = mk.n, normal = TUPLET_NORMAL[n];
+    const units = arr => { const base = Math.min(...arr.map(plainDur)); return arr.reduce((a, e) => a + plainDur(e) / base, 0); };
+    let chain = [nearE]; let a = nearE;
+    while (a.beamTo && list.includes(a.beamTo)) { chain.push(a.beamTo); a = a.beamTo; }
+    let prev = list.find(e => e.beamTo === chain[0]);
+    while (prev) { chain.unshift(prev); prev = list.find(e => e.beamTo === prev); }
+    let group = null;
+    if (chain.length > 1 && Math.abs(units(chain) - n) < 0.01) group = chain;
+    if (!group) {
+      let i0 = 0; list.forEach((e, i) => { if (Math.abs(e.x - mk.x) < Math.abs(list[i0].x - mk.x)) i0 = i; });
+      let lo = i0, hi = i0;
+      for (let it = 0; it < 12; it++) {
+        const arr = list.slice(lo, hi + 1), u = units(arr);
+        if (Math.abs(u - n) < 0.01) { group = arr; break; }
+        if (u > n) break;
+        const l = list[lo - 1], r = list[hi + 1]; if (!l && !r) break;
+        if (!r || (l && Math.abs(l.x - mk.x) < Math.abs(r.x - mk.x))) lo--; else hi++;
+      }
+    }
+    if (group && !group.some(e => e.tuplet)) group.forEach((e, i) => { e.tuplet = { actual: n, normal, first: i === 0, last: i === group.length - 1 }; });
+  }
 }
 
 /* Analyze one rendered page */
-function analyzePage(canvas, textItems) {
+function analyzePage(canvas, textItems, opts) {
+  opts = opts || {};
   let W = canvas.width, H = canvas.height;
   let gray = grayFromCanvas(canvas);
-  let bin = binarize(gray, otsu(gray));
+  const scan = !!opts.scan;
+  let bin = scan ? adaptiveBinarize(gray, W, H) : binarize(gray, otsu(gray));
   const skew = estimateSkew(bin, W, H);
-  if (skew) {
-    canvas = rotateCanvas(canvas, skew);
-    gray = grayFromCanvas(canvas); bin = binarize(gray, otsu(gray));
-  }
+  if (skew) { canvas = rotateCanvas(canvas, skew); gray = grayFromCanvas(canvas); bin = scan ? adaptiveBinarize(gray, W, H) : binarize(gray, otsu(gray)); }
   gray = null;
   const sp = estimateSpacing(bin, W, H);
   const result = { W, H, canvas, staves: [], systems: [], skew, textItems: textItems || [] };
-  if (sp.iL < 5) return result;
-  let hr = hRuns(bin, W, H), vr = vRuns(bin, W, H);
-  const staves = findStaves(bin, hr, vr, W, H, sp);
+  // close 1–2px horizontal gaps (broken staff lines in scans) for staff finding only
+  const closed = bin.slice();
+  for (let y = 0; y < H; y++) { const o = y * W; for (let x = 1; x < W - 2; x++) if (!bin[o + x] && bin[o + x - 1] && (bin[o + x + 1] || bin[o + x + 2])) closed[o + x] = 1; }
+  let hr = hRuns(closed, W, H), vr = vRuns(bin, W, H);
+  const found = findStaves(closed, hr, vr, W, H, { iL: Math.max(5, sp.iL), thick: sp.thick });
+  let staves = found.staves;
+  const iLref = staves.length ? median(staves.map(s => s.iL)) : null;
+  for (const l of found.singles) {
+    const iL = iLref || oneLineInterline(bin, vr, W, l, sp.thick);
+    if (iL >= 5) staves.push(makeOneLineStaff(l, iL));
+  }
+  staves.sort((a, b) => a.mid - b.mid);
   result.staves = staves;
   if (!staves.length) return result;
-  const maxT = Math.max(2, Math.round(sp.thick + Math.max(2, sp.thick * 0.6)));
+  const thickRef = sp.thick;
+  const maxT = Math.max(2, Math.round(thickRef + Math.max(2, thickRef * 0.6)));
   const clean = bin.slice();
   removeStaffLines(bin, clean, W, H, staves, maxT);
-  // band limits between neighbouring staves
   staves.forEach((s, i) => {
     const prev = staves[i - 1], next = staves[i + 1];
     s.bandTop = prev ? Math.max(s.top - 5.5 * s.iL, (prev.bottom + s.top) / 2) : s.top - 5.5 * s.iL;
     s.bandBottom = next ? Math.min(s.bottom + 5.5 * s.iL, (s.bottom + next.top) / 2) : s.bottom + 5.5 * s.iL;
   });
-  // remove ledger lines, ties and other thin horizontals inside staff bands (outside the clef area)
   let chr = hRuns(clean, W, H, hr), cvr = vRuns(clean, W, H, vr);
+  // thin curves (ties, slurs, hairpins) are kept aside before thin horizontals are removed
+  const thin = new Uint8Array(W * H);
   for (const s of staves) {
     const y0 = Math.max(0, Math.round(s.bandTop)), y1 = Math.min(H - 1, Math.round(s.bandBottom));
-    const x0 = Math.max(0, Math.round(s.left + 3.2 * s.iL)), x1 = Math.min(W - 1, Math.round(s.right + s.iL));
-    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const i = y * W + x; if (clean[i] && chr[i] >= 1.2 * s.iL && cvr[i] <= maxT) clean[i] = 0; }
+    const x0 = Math.max(0, Math.round(s.left + 2 * s.iL)), x1 = Math.min(W - 1, Math.round(s.right + s.iL));
+    const tmax = Math.max(maxT + 1, 0.3 * s.iL);
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const i = y * W + x; if (clean[i] && Math.min(chr[i], cvr[i]) <= tmax && cvr[i] < 0.9 * s.iL) thin[i] = 1; }
+    const xr = Math.max(0, Math.round(s.left + 3.2 * s.iL));
+    for (let y = y0; y <= y1; y++) for (let x = xr; x <= x1; x++) { const i = y * W + x; if (clean[i] && chr[i] >= 1.2 * s.iL && cvr[i] <= maxT) clean[i] = 0; }
   }
   chr = hRuns(clean, W, H, chr); cvr = vRuns(clean, W, H, cvr);
   const { lab, comps } = labelCC(clean, W, H, false);
-  const sysIdx = groupSystems(staves, bin, W);
-  // header & barlines
+  // remove specks (scan noise)
+  const iLmin = Math.min(...staves.map(s => s.iL));
+  for (const c of comps) if (c && c.area < Math.max(4, 0.02 * iLmin * iLmin) && c.w < 0.3 * iLmin && c.h < 0.3 * iLmin) {
+    for (let y = c.minY; y <= c.maxY; y++) for (let x = c.minX; x <= c.maxX; x++) { const i = y * W + x; if (lab[i] === c.id) { lab[i] = 0; clean[i] = 0; } }
+    comps[c.id] = null;
+  }
+  let sysIdx = groupSystems(staves, bin, W);
   staves.forEach(s => {
     s.nearComps = comps.filter(c => c && c.maxX >= s.left - 0.2 * s.iL && c.minX <= s.right + s.iL && c.cy >= s.bandTop && c.cy <= s.bandBottom).sort((a, b) => a.minX - b.minX);
     s.header = analyzeHeader(s, s.nearComps, lab, W, textItems);
@@ -985,9 +1440,15 @@ function analyzePage(canvas, textItems) {
     const s = staves[si];
     s.bars = findBarlines(s, k > 0 ? staves[idxs[k - 1]] : null, k < idxs.length - 1 ? staves[idxs[k + 1]] : null, clean, chr, lab, W, H);
   }));
-  const ctx = { clean, chr, cvr, lab, comps, W, H, textItems };
+  const ctx = { clean, chr, cvr, lab, comps, W, H, textItems, thin };
+  if (window.__debugOMR) result.debug = { thin, clean, W, H };
   staves.forEach(s => { s.sym = analyzeStaffSymbols(s, ctx); });
-  // consensus barlines and measure segmentation per system
+  // drop one-line "staves" that carry no music (rules, extender lines…)
+  const keep = staves.map(s => !s.oneLine || s.sym.events.filter(e => e.kind === 'note').length >= 2);
+  if (keep.some(k => !k)) {
+    sysIdx = sysIdx.map(idxs => idxs.filter(i => keep[i])).filter(a => a.length);
+  }
+  result.staves = staves.filter((s, i) => keep[i]);
   result.systems = sysIdx.map(idxs => {
     const sts = idxs.map(i => staves[i]);
     const iL = median(sts.map(s => s.iL));
@@ -1003,26 +1464,32 @@ function analyzePage(canvas, textItems) {
         repeatStart: g.items.some(b => b.repeatStart), repeatEnd: g.items.some(b => b.repeatEnd), thick: g.items.some(b => b.thick)
       }));
     }
-    // segments
     const segs = [];
     const starts = sts.map(s => s.header.headerEnd);
     const sysRight = Math.max(...sts.map(s => s.right));
     let prevBar = null;
-    const bounds = [...bars.filter(b => b.x > Math.min(...starts) + 0.5 * iL)];
+    const bounds = bars.filter(b => b.x > Math.min(...starts) + 0.5 * iL);
     for (let k = 0; k <= bounds.length; k++) {
       const endBar = bounds[k] || null;
       const x1 = endBar ? endBar.x0 : sysRight + iL;
       const x0s = sts.map((s, j) => prevBar ? prevBar.x1 : starts[j]);
       const evs = sts.map((s, j) => s.sym.events.filter(e => e.x >= x0s[j] - 0.2 * iL && e.x < x1));
       const width = x1 - Math.max(...x0s);
-      if (evs.some(e => e.length) || (width >= 2.5 * iL && endBar)) {
+      if (evs.some(e => e.some(x => x.kind === 'note' || x.kind === 'rest' || x.kind === 'multirest')) || (width >= 2.5 * iL && endBar)) {
+        evs.forEach((list, j) => {
+          splitVoices(list, sts[j]);
+          applyTuplets(list, sts[j].sym.tupletMarks.filter(t => t.x >= x0s[j] - 0.2 * iL && t.x < x1), sts[j]);
+        });
         segs.push({ x0s, x1, staffEvents: evs, repeatStart: !!(prevBar && prevBar.repeatStart), repeatEnd: !!(endBar && endBar.repeatEnd), final: !!(endBar && endBar.thick && !endBar.repeatEnd && k === bounds.length - 1) });
+      } else if (segs.length) {
+        // events such as a courtesy clef or wedge stop after the last barline join the previous bar
+        evs.forEach((list, j) => segs[segs.length - 1].staffEvents[j].push(...list.filter(e => e.kind !== 'note' && e.kind !== 'rest')));
       }
       prevBar = endBar;
     }
     return { staffIdx: idxs, staves: sts, bars, segs };
   });
-  result.iL = sp.iL;
+  result.iL = iLref || (staves[0] && staves[0].iL);
   result.overlay = drawOverlay(canvas, result);
   return result;
 }
@@ -1034,30 +1501,45 @@ function drawOverlay(canvas, res) {
   g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
   g.globalAlpha = 0.45; g.drawImage(canvas, 0, 0, c.width, c.height); g.globalAlpha = 1;
   g.scale(scale, scale);
+  const voiceOf = new Map();
+  for (const sys of res.systems) for (const seg of sys.segs) for (const list of seg.staffEvents) for (const e of list) voiceOf.set(e, e.voice || 1);
   for (const s of res.staves) {
-    const iL = s.iL;
+    const iL = s.iL, lw = Math.max(1.5, 0.14 * iL);
     g.strokeStyle = 'rgba(37,99,235,.55)'; g.lineWidth = Math.max(1, 0.12 * iL);
-    for (const y of s.lines) { g.beginPath(); g.moveTo(s.left, y); g.lineTo(s.right, y); g.stroke(); }
+    for (const y of (s.realLines || s.lines)) { g.beginPath(); g.moveTo(s.left, y); g.lineTo(s.right, y); g.stroke(); }
     g.fillStyle = 'rgba(100,116,139,.18)'; g.fillRect(s.left, s.top - iL, s.header.headerEnd - s.left, s.bottom - s.top + 2 * iL);
     g.fillStyle = '#475569'; g.font = `bold ${Math.round(iL * 0.9)}px sans-serif`;
     const t = s.header.time;
-    g.fillText(`${CLEF_LABEL[s.header.clef] || '?'} · ${s.header.fifths > 0 ? s.header.fifths + '♯' : s.header.fifths < 0 ? -s.header.fifths + '♭' : '0'}${t ? ' · ' + (t.beats || '?') + '/' + (t.beatType || '?') : ''}`, s.left, s.top - 1.3 * iL);
-    for (const b of s.bars) { g.fillStyle = 'rgba(249,115,22,.75)'; g.fillRect(b.x0 - 1, s.top, b.x1 - b.x0 + 3, s.bottom - s.top); }
-    for (const h of s.sym.heads) {
-      g.strokeStyle = h.hollow ? '#0891b2' : '#16a34a'; g.lineWidth = Math.max(1.5, 0.15 * iL);
-      g.beginPath(); g.ellipse(h.cx, h.cy, h.hw + 0.15 * iL, 0.65 * iL, 0, 0, Math.PI * 2); g.stroke();
-      if (h.stem) { g.beginPath(); g.moveTo(h.stem.x, h.cy); g.lineTo(h.stem.x, h.stem.endY); g.stroke(); }
+    g.fillText(`${CLEF_LABEL[s.header.clef] || '?'}${s.oneLine ? ' (1-line)' : ''} · ${s.header.fifths > 0 ? s.header.fifths + '♯' : s.header.fifths < 0 ? -s.header.fifths + '♭' : '0'}${t ? ' · ' + (t.beats || '?') + '/' + (t.beatType || '?') : ''}`, s.left, s.top - 1.3 * iL);
+    for (const b of s.bars) { g.fillStyle = 'rgba(249,115,22,.75)'; g.fillRect(b.x0 - 1, s.oneLine ? s.mid - iL : s.top, b.x1 - b.x0 + 3, s.oneLine ? 2 * iL : s.bottom - s.top); }
+    for (const e of s.sym.events) {
+      if (e.kind === 'note') {
+        const v2 = voiceOf.get(e) === 2;
+        for (const h of e.heads) {
+          g.strokeStyle = e.grace ? '#0d9488' : v2 ? '#ca8a04' : h.hollow ? '#0891b2' : '#16a34a'; g.lineWidth = lw;
+          g.beginPath(); g.ellipse(h.cx, h.cy, h.hw + 0.15 * iL, (e.grace ? 0.45 : 0.65) * iL, 0, 0, Math.PI * 2); g.stroke();
+        }
+        if (e.stem) { g.beginPath(); g.moveTo(e.stem.x, e.heads[0].cy); g.lineTo(e.stem.x, e.stem.endY); g.stroke(); }
+        g.fillStyle = v2 ? '#a16207' : '#166534'; g.font = `${Math.round(iL * 0.8)}px sans-serif`;
+        const y = s.bottom + 1.6 * iL + (e.heads[0].pos < -3 ? 2.5 * iL : 0) + (v2 ? 0.9 * iL : 0);
+        const lbl = { whole: 'w', half: 'h', quarter: 'q', eighth: '8', '16th': '16', '32nd': '32' }[e.type] + (e.dots ? '.' : '') + (e.tuplet ? '³' : '') + (e.grace ? 'g' : '');
+        g.fillText(lbl, e.x - 0.3 * iL, y);
+      } else if (e.kind === 'dyn') { g.fillStyle = '#0d9488'; g.font = `bold italic ${Math.round(iL * 1.1)}px serif`; g.fillText(e.word, e.x, e.y + 2.2 * iL); }
+      else if (e.kind === 'clef' || e.kind === 'key' || e.kind === 'time') {
+        g.strokeStyle = '#64748b'; g.lineWidth = lw; g.setLineDash([4, 3]); g.strokeRect(e.x - 0.3 * iL, s.top - iL, 2.4 * iL, s.bottom - s.top + 2 * iL); g.setLineDash([]);
+        g.fillStyle = '#475569'; g.font = `bold ${Math.round(iL * 0.75)}px sans-serif`;
+        g.fillText(e.kind === 'clef' ? CLEF_LABEL[e.clef] : e.kind === 'key' ? `key ${e.fifths}` : `${e.time.beats}/${e.time.beatType}`, e.x, s.top - 1.2 * iL);
+      }
     }
-    for (const e of s.sym.events) if (e.kind === 'note') {
-      g.fillStyle = '#166534'; g.font = `${Math.round(iL * 0.8)}px sans-serif`;
-      const y = s.bottom + 1.6 * iL + (e.heads[0].pos < -3 ? 2.5 * iL : 0);
-      g.fillText({ whole: 'w', half: 'h', quarter: 'q', eighth: '8', '16th': '16', '32nd': '32' }[e.type] + (e.dots ? '.' : ''), e.x - 0.3 * iL, y);
-    }
-    for (const r of s.sym.rests) { g.strokeStyle = '#9333ea'; g.lineWidth = Math.max(1.5, 0.15 * iL); g.strokeRect(r.c.minX - 2, r.c.minY - 2, r.c.w + 4, r.c.h + 4); }
+    g.strokeStyle = '#db2777'; g.lineWidth = lw;
+    for (const a of s.sym.arcs) if (a.kind) { g.beginPath(); g.moveTo(a.xL, a.yL); g.quadraticCurveTo((a.xL + a.xR) / 2, (a.yL + a.yR) / 2 + (a.bulge === 'up' ? -1 : 1) * 0.8 * iL, a.xR, a.yR); g.stroke(); }
+    for (const w of s.sym.wedges) { g.beginPath(); const o = 0.5 * iL; if (w.type === 'crescendo') { g.moveTo(w.x1, w.y - o); g.lineTo(w.x0, w.y); g.lineTo(w.x1, w.y + o); } else { g.moveTo(w.x0, w.y - o); g.lineTo(w.x1, w.y); g.lineTo(w.x0, w.y + o); } g.stroke(); }
+    for (const t of s.sym.tupletMarks) { g.fillStyle = '#0d9488'; g.font = `bold ${Math.round(iL)}px sans-serif`; g.fillText(String(t.n), t.x - 0.3 * iL, t.y - 0.8 * iL); }
+    for (const r of s.sym.rests) { g.strokeStyle = '#9333ea'; g.lineWidth = lw; g.strokeRect(r.c.minX - 2, r.c.minY - 2, r.c.w + 4, r.c.h + 4); }
     for (const m of s.sym.multis) { g.strokeStyle = '#9333ea'; g.strokeRect(m.c.minX - 2, m.c.minY - 2, m.c.w + 4, m.c.h + 4); g.fillStyle = '#9333ea'; g.fillText(String(m.count || '?'), m.c.cx, s.top - 0.5 * iL); }
-    for (const a of s.sym.accs) { g.strokeStyle = '#dc2626'; g.lineWidth = Math.max(1.5, 0.12 * iL); g.strokeRect(a.c.minX - 2, a.c.minY - 2, a.c.w + 4, a.c.h + 4); }
+    for (const a of s.sym.accs) { g.strokeStyle = '#dc2626'; g.lineWidth = lw; g.strokeRect(a.c.minX - 2, a.c.minY - 2, a.c.w + 4, a.c.h + 4); }
   }
-  return { url: c.toDataURL('image/jpeg', 0.72), scale, staves: res.staves.map(s => ({ top: s.top, bottom: s.bottom, iL: s.iL })) };
+  return { url: c.toDataURL('image/jpeg', 0.72), scale };
 }
 
 /* ====================================================================
@@ -1067,6 +1549,7 @@ function groupTextLines(items) {
   const sorted = [...items].sort((a, b) => a.baseline - b.baseline || a.x - b.x);
   const lines = [];
   for (const it of sorted) {
+    if (/^[-\s]+$/u.test(it.str)) continue;
     const l = lines.find(L => Math.abs(L.baseline - it.baseline) < Math.max(2, 0.35 * Math.min(L.h, it.h)) && it.x - (L.x + L.w) < 1.5 * Math.max(L.h, it.h) && it.x >= L.x - 1);
     if (l) { const gap = it.x - (l.x + l.w); l.str += (gap > 0.15 * it.h ? ' ' : '') + it.str; l.w = Math.max(l.x + l.w, it.x + it.w) - l.x; l.h = Math.max(l.h, it.h); }
     else lines.push({ ...it });
@@ -1109,67 +1592,106 @@ function findTitleComposer(page) {
   const top = page.textLines.filter(l => l.baseline < Math.min(firstTop, page.H * 0.3) && /[a-z]{2,}/i.test(l.str) && !/[-]/u.test(l.str) && !matchInstrument(l.str, false) && !/^\s*(full\s+)?(score|conductor)\s*$/i.test(l.str) && !/=\s*\d/.test(l.str));
   if (!top.length) return {};
   const title = [...top].sort((a, b) => b.h - a.h)[0];
-  const comp = top.filter(l => l !== title && l.x > page.W * 0.55 && !matchInstrument(l.str, false)).sort((a, b) => a.baseline - b.baseline)[0];
+  const comp = top.filter(l => l !== title && l.x > page.W * 0.55).sort((a, b) => a.baseline - b.baseline)[0];
   return { title: title.str.trim(), composer: comp ? comp.str.trim() : null };
 }
 
 /* ====================================================================
-   Assemble pages → document (parts, measures)
+   Assemble pages → document
    ==================================================================== */
-function guessInstByClef(clef) { return clef === 'F4' ? 'unknown_bass' : clef === 'C3' ? 'viola' : clef === 'perc' ? 'percussion' : 'unknown'; }
+const measureLen = t => Math.round(t.beats * WHOLE / t.beatType);
+function voiceList(evs) { const s = new Set(evs.filter(isTimed).map(e => e.voice || 1)); return s.size ? [...s].sort() : [1]; }
+function voiceSum(evs, v, E) {
+  const ve = evs.filter(e => isTimed(e) && (e.voice || 1) === v);
+  if (ve.length === 1 && ve[0].kind === 'rest' && ve[0].type === 'whole') return E;
+  return ve.reduce((a, e) => a + evDur(e), 0);
+}
+function staffSum(evs, E) { return Math.max(0, ...voiceList(evs).map(v => voiceSum(evs, v, E))); }
+function measureTimes(doc, n) { const out = []; let t = doc.time; for (let i = 0; i < n; i++) { if (doc.timeAt[i]) t = doc.timeAt[i]; out.push(t); } return out; }
+function partDisplayName(p) { const inst = INST[p.instId] || INST.unknown; return inst.name + (p.num ? ' ' + p.num : ''); }
+function partTrans(p) { const inst = INST[p.instId] || INST.unknown; return p.trans && p.transFor === p.instId ? p.trans : inst.t; }
+
+// Triplets/sextuplets without a readable number: convert beamed groups of 3 (or 6) equal notes in over-full bars
+function inferTuplets(evs, E) {
+  let count = 0;
+  for (const v of voiceList(evs)) {
+    if (voiceSum(evs, v, E) <= E) continue;
+    const ve = evs.filter(e => isTimed(e) && (e.voice || 1) === v);
+    const chains = [];
+    const seen = new Set();
+    for (const e of ve) {
+      if (seen.has(e) || e.kind !== 'note' || e.tuplet) continue;
+      if (ve.some(o => o.beamTo === e)) continue;
+      const ch = [e]; let a = e; while (a.beamTo && ve.includes(a.beamTo)) { ch.push(a.beamTo); a = a.beamTo; }
+      ch.forEach(x => seen.add(x));
+      if ((ch.length === 3 || ch.length === 6) && ch.every(x => x.type === ch[0].type && !x.dots && !x.tuplet)) chains.push(ch);
+    }
+    const applied = [];
+    for (const ch of chains) {
+      if (voiceSum(evs, v, E) <= E) break;
+      const n = ch.length; ch.forEach((e, i) => { e.tuplet = { actual: n, normal: n === 3 ? 2 : 4, first: i === 0, last: i === n - 1, inferred: true }; });
+      applied.push(ch);
+    }
+    if (voiceSum(evs, v, E) === E) count += applied.length;
+    else applied.forEach(ch => ch.forEach(e => { delete e.tuplet; }));
+  }
+  return count;
+}
 
 function assembleDocument(fileName, pages) {
   const warnings = [];
   const systems = [];
   pages.forEach((pg, pi) => pg.systems.forEach(sys => systems.push({ ...sys, page: pi })));
-  if (!systems.length) throw new Error('No five-line staves were found. If this is a scan, try a higher resolution (300 dpi) image or PDF.');
+  if (!systems.length) throw new Error('No staves were found. If this is a scan, try a higher resolution (300 dpi) image or PDF.');
   const fileInst = matchInstrument(fileName.replace(/\.[^.]+$/, '').replace(/[_\-+]+/g, ' '), true);
   const maxN = Math.max(...systems.map(s => s.staves.length));
-  const parts = []; // {instId, num, label, trans, staffCount, measures:[], headers:[]}
-  const newPart = (m, staffCount, fallbackClef) => {
+  const parts = [];
+  const newPart = (m, staffCount, fallbackClef, oneLine) => {
     let instId = m ? m.instId : null;
-    if (!instId || instId === 'unknown_bass') instId = fallbackClef === 'F4' ? 'unknown' : (instId || 'unknown');
-    const p = { instId, num: m ? m.num : null, label: m ? m.raw : null, trans: m ? m.trans : null, transFor: instId, staffCount, measures: [], headers: [], unlabeled: !m };
-    if (fallbackClef === 'F4' && p.instId === 'unknown') p.unknownBass = true;
+    if (!instId) instId = fallbackClef === 'perc' ? 'percussion' : 'unknown';
+    const p = { instId, num: m ? m.num : null, label: m ? m.raw : null, trans: m ? m.trans : null, transFor: instId, staffCount, measures: [], headers: [], unlabeled: !m, oneLine: !!oneLine };
     parts.push(p); return p;
   };
   const pushMeasures = (part, sys, staffNos) => {
-    for (const seg of sys.segs) {
+    sys.segs.forEach((seg, si) => {
       const staffEvents = staffNos.map(k => (k == null ? [] : seg.staffEvents[k]));
       const multi = staffEvents[0].find(e => e.kind === 'multirest');
       const onlyMulti = multi && !staffEvents[0].some(e => e.kind === 'note');
-      const clefs = staffNos.map(k => (k == null ? null : sys.staves[k].header.clef));
-      const fifths = staffNos.map(k => (k == null ? null : sys.staves[k].header.fifths));
-      const base = { repeatStart: seg.repeatStart, repeatEnd: seg.repeatEnd, final: seg.final, clefs, fifths, page: sys.page, staffRefs: staffNos.map(k => (k == null ? null : { page: sys.page, top: sys.staves[k].top, bottom: sys.staves[k].bottom, x0: seg.x0s[k], x1: seg.x1 })) };
+      const first = si === 0;
+      const clefs = staffNos.map(k => (k == null || !first ? null : sys.staves[k].header.clef));
+      const fifths = staffNos.map(k => (k == null || !first ? null : sys.staves[k].header.fifths));
+      const hdrTime = first && staffNos[0] != null ? sys.staves[staffNos[0]].header.time : null;
+      const base = { repeatStart: seg.repeatStart, repeatEnd: seg.repeatEnd, final: seg.final, clefs, fifths, sysStart: first, headerTime: hdrTime, page: sys.page, staffRefs: staffNos.map(k => (k == null ? null : { page: sys.page, top: sys.staves[k].top, bottom: sys.staves[k].bottom, x0: seg.x0s[k], x1: seg.x1 })) };
       if (onlyMulti) {
         const n = multi.count || 1;
         if (!multi.count) part.multiUnread = (part.multiUnread || 0) + 1;
-        for (let i = 0; i < n; i++) part.measures.push({ ...base, staffEvents: staffNos.map(() => []), multiRest: i === 0 ? n : 0, repeatStart: i === 0 && base.repeatStart, repeatEnd: i === n - 1 && base.repeatEnd });
+        for (let i = 0; i < n; i++) part.measures.push({ ...base, sysStart: first && i === 0, staffEvents: staffNos.map(() => []), multiRest: i === 0 ? n : 0, repeatStart: i === 0 && base.repeatStart, repeatEnd: i === n - 1 && base.repeatEnd });
       } else part.measures.push({ ...base, staffEvents: staffEvents.map(evs => evs.filter(e => e.kind !== 'multirest')) });
-    }
+    });
     staffNos.forEach(k => { if (k != null) part.headers.push(sys.staves[k].header); });
   };
 
   if (maxN === 1) {
-    // single parts or a packet of parts
     let cur = null;
     systems.forEach((sys, si) => {
       const pg = pages[sys.page];
+      const st = sys.staves[0];
       const isFirstOnPage = si === 0 || systems[si - 1].page !== sys.page;
-      if (isFirstOnPage) {
-        const hdr = pageHeaderInstrument(pg);
-        if (!cur) cur = newPart(hdr || fileInst, 1, sys.staves[0].header.clef);
-        else if (hdr && (hdr.instId !== cur.instId || (hdr.num || null) !== (cur.num || null)) && !(cur.unlabeled && sys.page <= 1)) cur = newPart(hdr, 1, sys.staves[0].header.clef);
+      const kindChanged = cur && !!cur.oneLine !== !!st.oneLine;
+      if (isFirstOnPage || kindChanged) {
+        const hdr = isFirstOnPage ? pageHeaderInstrument(pg) : null;
+        if (!cur) cur = newPart(hdr || fileInst, 1, st.header.clef, st.oneLine);
+        else if ((hdr && (hdr.instId !== cur.instId || (hdr.num || null) !== (cur.num || null)) && !(cur.unlabeled && sys.page <= 1)) || kindChanged) cur = newPart(hdr, 1, st.header.clef, st.oneLine);
         else if (hdr && cur.unlabeled) Object.assign(cur, { instId: hdr.instId, num: hdr.num, label: hdr.raw, trans: hdr.trans, transFor: hdr.instId, unlabeled: false });
       }
       pushMeasures(cur, sys, [0]);
     });
-    if (parts.length > 1) warnings.push(`Found ${parts.length} different part headers, so the file was split into ${parts.length} parts (one per instrument).`);
+    if (parts.length > 1) warnings.push(`Found ${parts.length} different parts (by page header or staff type), so they became ${parts.length} parts of one score.`);
   } else {
     const ref = systems.find(s => s.staves.length === maxN);
     const refPage = pages[ref.page];
     const labels = ref.staves.map(s => staffLabel(refPage, s, ref));
-    const slots = []; // {part, staffNo}
+    const slots = [];
     const headerInst = pageHeaderInstrument(pages[0]) || fileInst;
     if (labels.every(l => !l) && maxN === 2 && (!headerInst || INST[headerInst.instId]?.grand)) {
       const p = newPart(headerInst && INST[headerInst.instId]?.grand ? headerInst : { instId: 'piano', num: null, raw: 'Piano' }, 2);
@@ -1180,15 +1702,11 @@ function assembleDocument(fileName, pages) {
         if (lb && INST[lb.instId]?.grand && i + 1 < maxN && !labels[i + 1]) {
           const p = newPart(lb, 2); slots.push({ part: p, staffNo: 0 }, { part: p, staffNo: 1 }); i++; continue;
         }
-        if (!lb && i > 0 && labels[i - 1] && INST[labels[i - 1].instId]?.grand && slots[slots.length - 1].part.staffCount === 1 && slots[slots.length - 1].staffNo === 0 && !slots[slots.length - 1].part.secondTaken) {
-          const p = slots[slots.length - 1].part; p.staffCount = 2; slots.push({ part: p, staffNo: 1 }); continue;
-        }
-        const p = newPart(lb, 1, ref.staves[i].header.clef);
+        const p = newPart(lb, 1, ref.staves[i].header.clef, ref.staves[i].oneLine);
         slots.push({ part: p, staffNo: 0 });
       }
       if (labels.every(l => !l)) warnings.push('No instrument names were found next to the staves. Choose the instruments below.');
     }
-    // map every system to slots
     for (const sys of systems) {
       let assign;
       if (sys.staves.length === slots.length) assign = slots.map((_, i) => i);
@@ -1212,109 +1730,214 @@ function assembleDocument(fileName, pages) {
     }
   }
 
-  // per-part key, clef
   for (const p of parts) {
-    const hs = p.headers.filter(Boolean);
-    p.fifths = mode(hs.map(h => h.fifths)) ?? 0;
+    const firsts = p.measures.filter(m => m.sysStart && m.fifths && m.fifths[0] != null).slice(0, 3).map(m => m.fifths[0]);
+    p.fifths = firsts.length ? (firsts.filter(f => f === firsts[0]).length * 2 >= firsts.length ? firsts[0] : mode(firsts)) : 0;
     p.clefs = [];
     for (let k = 0; k < p.staffCount; k++) {
       const cl = p.measures.map(m => m.clefs[k]).filter(Boolean);
       const inst = INST[p.instId] || INST.unknown;
       p.clefs.push(cl[0] || (k === 1 ? (inst.clef2 || 'F4') : inst.clef));
     }
-    if (p.unknownBass) p.instId = 'unknown';
     if (p.instId === 'unknown' && p.clefs[0] === 'perc') p.instId = 'percussion';
-    if (p.multiUnread) warnings.push(`${partDisplayName(p)}: ${p.multiUnread} multi-measure rest count(s) couldn't be read and were counted as 1 bar.`);
+    // key-change events apply to every staff of a part
+    if (p.staffCount > 1) p.measures.forEach(m => { const kev = m.staffEvents.flat().filter(e => e.kind === 'key'); m.staffEvents.forEach(list => { kev.forEach(k => { if (!list.includes(k)) list.push({ ...k }); }); list.sort((a, b) => a.x - b.x); }); });
+    if (p.multiUnread) warnings.push(`${partDisplayName(p)}: ${p.multiUnread} multi-bar rest count(s) couldn't be read and were counted as 1 bar.`);
   }
-  // time signature
+  // time signature and time changes (shared by all parts, by bar number)
   let time = null, timeSource = 'detected';
-  for (const p of parts) for (const h of p.headers) if (h && h.time && h.time.beats && h.time.beatType) { time = { beats: h.time.beats, beatType: h.time.beatType, symbol: h.time.symbol }; break; }
-  if (!time) {
-    const sums = [];
-    for (const p of parts) p.measures.forEach((m, i) => { if (i > 0 && i < p.measures.length - 1 && !m.multiRest) { const s = measureSum(m.staffEvents[0], null); if (s > 0) sums.push(s); } });
-    const md = mode(sums) || 192;
-    const q = md / 48;
-    time = q === 1.5 ? { beats: 3, beatType: 8 } : q === 3 ? { beats: 3, beatType: 4 } : q === 2 ? { beats: 2, beatType: 4 } : q === 5 ? { beats: 5, beatType: 4 } : q === 6 ? { beats: 6, beatType: 4 } : { beats: 4, beatType: 4 };
-    timeSource = 'inferred';
-    warnings.push(`Time signature wasn't read from the page; ${time.beats}/${time.beatType} was inferred from the rhythms.`);
-  }
-  // equalize measure counts
+  for (const p of parts) { const h = p.headers.find(h => h && h.time && h.time.beats && h.time.beatType); if (h) { time = { beats: h.time.beats, beatType: h.time.beatType, symbol: h.time.symbol }; break; } }
   const maxM = Math.max(...parts.map(p => p.measures.length));
   for (const p of parts) while (p.measures.length < maxM) p.measures.push({ staffEvents: new Array(p.staffCount).fill(0).map(() => []), clefs: [], fifths: [], padded: true, staffRefs: [] });
+  const timeAt = {};
+  for (const p of parts) p.measures.forEach((m, i) => {
+    const ev = m.staffEvents.flat().find(e => e.kind === 'time');
+    const t = ev ? ev.time : (i > 0 && m.headerTime && m.headerTime.beats && m.headerTime.beatType ? m.headerTime : null);
+    if (t && !timeAt[i]) timeAt[i] = { beats: t.beats, beatType: t.beatType, symbol: null };
+    m.staffEvents.forEach((list, k) => { m.staffEvents[k] = list.filter(e => e.kind !== 'time'); });
+  });
+  if (!time) {
+    const sums = [];
+    for (const p of parts) p.measures.forEach((m, i) => { if (i > 0 && i < p.measures.length - 1 && !m.multiRest && !timeAt[i]) { const s = staffSum(m.staffEvents[0], null); if (s > 0) sums.push(s); } });
+    const q = (mode(sums) || WHOLE) / DIV;
+    time = q === 1.5 ? { beats: 3, beatType: 8 } : q === 3 ? { beats: 3, beatType: 4 } : q === 2 ? { beats: 2, beatType: 4 } : q === 5 ? { beats: 5, beatType: 4 } : q === 6 ? { beats: 6, beatType: 4 } : { beats: 4, beatType: 4 };
+    timeSource = 'inferred';
+    warnings.push(`The time signature wasn't readable on the page, so ${time.beats}/${time.beatType} was inferred from the rhythms.`);
+  }
+  // remove time changes that only repeat the current time
+  { let cur = time; for (let i = 1; i < maxM; i++) if (timeAt[i]) { if (timeAt[i].beats === cur.beats && timeAt[i].beatType === cur.beatType) delete timeAt[i]; else cur = timeAt[i]; } delete timeAt[0]; }
+  const doc = { fileName, time, timeAt, timeSource, parts, warnings };
+  // triplets without a readable "3"
+  const times = measureTimes(doc, maxM);
+  let inferred = 0;
+  for (const p of parts) p.measures.forEach((m, i) => m.staffEvents.forEach(list => { inferred += inferTuplets(list, measureLen(times[i])); }));
+  if (inferred) warnings.push(`${inferred} beamed group(s) had no readable tuplet number but only fit the bar as triplets/sextuplets, so they were written as tuplets.`);
 
   const pg0 = pages[0];
   const tc = findTitleComposer(pg0);
   const concert = pages.some(pg => pg.textLines.some(l => /\b(concert\s+pitch|c\s+score|score\s+in\s+c|partitur\s+in\s+c)\b/.test(normText(l.str))));
-  return {
-    fileName,
+  Object.assign(doc, {
     title: tc.title || fileName.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '),
     composer: tc.composer || null,
-    tempo: findTempo(pg0),
-    time, timeSource, concert, parts, warnings,
+    tempo: findTempo(pg0), concert,
     pages: pages.length,
     overlays: pages.map(pg => pg.overlay).filter(Boolean)
-  };
+  });
+  doc.features = countFeatures(doc);
+  return doc;
 }
-
-function eventDiv(e, measureLen) {
-  if (e.kind === 'rest' && e.type === 'whole' && measureLen) return null; // resolved by caller
-  const base = TYPE_DIV[e.type] || 48;
-  return e.dots === 2 ? base * 1.75 : e.dots === 1 ? base * 1.5 : base;
-}
-function measureSum(events, measureLen) {
-  const ev = events.filter(e => e.kind !== 'multirest');
-  if (ev.length === 1 && ev[0].kind === 'rest' && ev[0].type === 'whole') return measureLen || 192;
-  return ev.reduce((s, e) => s + (eventDiv(e) || TYPE_DIV.whole), 0);
-}
-function partDisplayName(p) { const inst = INST[p.instId] || INST.unknown; return inst.name + (p.num ? ' ' + p.num : ''); }
-function partTrans(p) { const inst = INST[p.instId] || INST.unknown; return p.trans && p.transFor === p.instId ? p.trans : inst.t; }
-
-/* Per-measure validation */
-function validateDoc(doc) {
-  const E = doc.time.beats * (192 / doc.time.beatType);
-  let flagged = 0;
-  for (const p of doc.parts) {
-    p.flagged = 0;
-    p.measures.forEach((m, i) => {
-      m.flag = null;
-      if (m.multiRest !== undefined && m.multiRest === 0 && !m.staffEvents.some(e => e.length)) return;
-      m.staffEvents.forEach(evs => {
-        if (!evs.length) return;
-        const s = measureSum(evs, E);
-        if (s > E + 0.01) m.flag = 'over';
-        else if (s < E - 0.01 && i !== 0 && i !== p.measures.length - 1 && !m.flag) m.flag = 'under';
-      });
-      if (m.flag) { p.flagged++; flagged++; }
-    });
+function countFeatures(doc) {
+  const f = { tuplets: 0, grace: 0, ties: 0, slurs: 0, dynamics: 0, hairpins: 0, twoVoiceBars: 0, clefChanges: 0, keyChanges: 0, timeChanges: Object.keys(doc.timeAt).length, oneLine: doc.parts.filter(p => p.oneLine).length };
+  for (const p of doc.parts) for (const m of p.measures) for (const list of m.staffEvents) {
+    if (list.some(e => (e.voice || 1) === 2)) f.twoVoiceBars++;
+    for (const e of list) {
+      if (e.tuplet && e.tuplet.first) f.tuplets++;
+      if (e.grace) f.grace++;
+      if (e.kind === 'note') { f.ties += e.heads.filter(h => h.tieStart).length; f.slurs += e.slurStart || 0; }
+      if (e.kind === 'dyn') f.dynamics++;
+      if (e.kind === 'wedge') f.hairpins++;
+      if (e.kind === 'clef') f.clefChanges++;
+      if (e.kind === 'key') f.keyChanges++;
+    }
   }
+  return f;
+}
+
+/* ====================================================================
+   Resolve a part: pitches, accidentals, ties, slurs, voices, validation
+   ==================================================================== */
+function keyAlter(step, fifths) {
+  if (fifths > 0) return SHARP_ORDER.slice(0, fifths).includes(step) ? 1 : 0;
+  if (fifths < 0) return FLAT_ORDER.slice(0, -fifths).includes(step) ? -1 : 0;
+  return 0;
+}
+function pitchOf(pos, clef) {
+  const idx = (CLEF_BASE[clef] ?? 30) + pos;
+  return { step: DIA[((idx % 7) + 7) % 7], octave: Math.floor(idx / 7) };
+}
+function computePickup(doc) {
+  const E0 = measureLen(doc.time);
+  doc.pickup = doc.parts.every(p => { const m = p.measures[0]; if (!m || m.multiRest) return false; const has = m.staffEvents.some(l => l.some(isTimed)); return !has || staffSum(m.staffEvents[0], E0) < E0; })
+    && doc.parts.some(p => p.measures[0] && p.measures[0].staffEvents.some(l => l.some(e => e.kind === 'note')))
+    && doc.parts.length && doc.parts[0].measures.length > 1;
+}
+function resolvePart(doc, p) {
+  const inst = INST[p.instId] || INST.unknown;
+  const n = p.measures.length;
+  const times = measureTimes(doc, n);
+  let key = inst.perc ? 0 : p.fifths;
+  const clefs = [...p.clefs];
+  const sysStarts = p.measures.map((m, i) => (m.sysStart ? i : -1)).filter(i => i >= 0);
+  const pendingTie = {}, slurStack = {}, wedgeOpen = {};
+  const out = [];
+  let flagged = 0;
+  p.measures.forEach((m, mi) => {
+    const time = times[mi], E = measureLen(time);
+    const implicit = mi === 0 && doc.pickup;
+    const R = { mi, implicit, E, time, initial: mi === 0, timeChange: mi > 0 && doc.timeAt[mi] ? time : null, keyChange: null, clefChanges: [], multiRest: m.multiRest || 0, repeatStart: m.repeatStart, repeatEnd: m.repeatEnd, final: m.final, staves: [], staffRefs: m.staffRefs, page: m.page };
+    if (mi > 0 && m.sysStart && m.fifths && m.fifths[0] != null && !inst.perc && m.fifths[0] !== key) {
+      const idx = sysStarts.indexOf(mi), nxt = sysStarts[idx + 1];
+      const nf = nxt != null ? (p.measures[nxt].fifths || [])[0] : m.fifths[0];
+      if (nf === m.fifths[0]) { key = m.fifths[0]; R.keyChange = key; }
+    }
+    if (mi > 0 && m.sysStart && m.clefs) m.clefs.forEach((c, k) => { if (c && c !== clefs[k] && !inst.perc && !p.oneLine) { clefs[k] = c; R.clefChanges.push({ k, clef: c }); } });
+    const keyStart = key; let keyEnd = key;
+    m.staffEvents.forEach((evsRaw, k) => {
+      const evs = evsRaw.filter(e => e.kind !== 'multirest' && e.kind !== 'time').slice().sort((a, b) => a.x - b.x);
+      let kKey = keyStart, clef = clefs[k];
+      const acc = {}, items = [];
+      for (const e of evs) {
+        if (e.kind === 'key') { if (inst.perc) continue; kKey = e.fifths; for (const z in acc) delete acc[z]; if (k === 0) items.push({ t: 'attr', x: e.x, key: e.fifths }); continue; }
+        if (e.kind === 'clef') { if (!inst.perc && !p.oneLine && e.clef !== clef) { clef = e.clef; items.push({ t: 'attr', x: e.x, clef: { k, clef: e.clef } }); } continue; }
+        if (e.kind === 'dyn') { items.push({ t: 'dir', x: e.x, dyn: e.word }); continue; }
+        if (e.kind === 'wedge') { items.push({ t: 'dir', x: e.x, wedge: e.wtype }); continue; }
+        if (e.kind === 'wedgeStop') { items.push({ t: 'dir', x: e.x, wedge: 'stop' }); continue; }
+        if (e.kind === 'rest') { items.push({ t: 'rest', x: e.x, e, voice: e.voice || 1, dur: evDur(e), type: e.type, dots: e.dots, tuplet: e.tuplet }); continue; }
+        if (e.kind === 'note') {
+          const heads = [...e.heads].sort((a, b) => a.pos - b.pos).map(h => {
+            const { step, octave } = pitchOf(h.pos, inst.perc ? 'perc' : clef);
+            const kk = step + octave; let alter;
+            if (h.acc && !e.grace) { alter = h.acc === 'sharp' ? 1 : h.acc === 'flat' ? -1 : 0; acc[kk] = alter; }
+            else alter = kk in acc ? acc[kk] : keyAlter(step, kKey);
+            return { step, octave, alter: inst.perc ? 0 : alter, acc: h.acc, tieStart: !!h.tieStart && !e.grace, tieStop: false, _dur: evDur(e) };
+          });
+          items.push({ t: 'note', x: e.x, e, voice: e.voice || 1, grace: !!e.grace, slash: !!e.slash, dur: evDur(e), type: e.type, dots: e.dots, tuplet: e.tuplet, stemDir: e.stem && e.type !== 'whole' ? e.stem.dir : null, heads, slurs: [], slurStartN: e.slurStart || 0, slurStopN: e.slurStop || 0 });
+        }
+      }
+      if (k === 0) keyEnd = kKey;
+      clefs[k] = clef;
+      // slurs (per staff, in reading order)
+      const ss = slurStack[k] || (slurStack[k] = []);
+      for (const it of items) if (it.t === 'note') {
+        for (let q = 0; q < it.slurStopN; q++) { const st = ss.pop(); if (st) { st.item.slurs.push({ type: 'start', number: st.number }); it.slurs.push({ type: 'stop', number: st.number }); } }
+        for (let q = 0; q < it.slurStartN; q++) if (ss.length < 6) ss.push({ item: it, number: ss.length + 1 });
+      }
+      // wedges
+      for (const it of items) if (it.t === 'dir' && it.wedge) {
+        if (it.wedge === 'stop') { if (wedgeOpen[k]) wedgeOpen[k] = null; else it.drop = true; }
+        else { if (wedgeOpen[k]) wedgeOpen[k].drop = true; wedgeOpen[k] = it; }
+      }
+      const vs = voiceList(evs);
+      const voices = vs.map(v => {
+        const vItems = items.filter(it => (it.t === 'note' || it.t === 'rest') ? it.voice === v : v === vs[0]);
+        // ties within the voice, across bars
+        const key2 = k + ':' + v;
+        for (const it of vItems) {
+          if (it.t === 'rest') { (pendingTie[key2] || []).forEach(ph => { ph.tieStart = false; }); pendingTie[key2] = []; continue; }
+          if (it.t !== 'note' || it.grace) continue;
+          const pend = pendingTie[key2] || [];
+          for (const ph of pend) {
+            const h = it.heads.find(x => x.step === ph.step && x.octave === ph.octave);
+            if (h) { h.tieStop = true; ph.tieNext = h; } else ph.tieStart = false;
+          }
+          pendingTie[key2] = it.heads.filter(h => h.tieStart);
+        }
+        const timed = vItems.filter(it => (it.t === 'note' && !it.grace) || it.t === 'rest');
+        const measureRest = timed.length === 1 && timed[0].t === 'rest' && timed[0].type === 'whole';
+        const len = measureRest ? E : timed.reduce((a, it) => a + it.dur, 0);
+        return { v, items: vItems, len, measureRest };
+      });
+      R.staves.push({ voices, clef });
+    });
+    key = keyEnd;
+    const lens = R.staves.flatMap(s => s.voices.filter(v => v.items.some(it => it.t === 'note' || it.t === 'rest')).map(v => v.len));
+    const maxLen = lens.length ? Math.max(...lens) : 0;
+    R.target = implicit ? (maxLen || E) : Math.max(E, maxLen);
+    R.flag = null;
+    if (!m.padded && !(m.multiRest === 0 && m.multiRest !== undefined && !lens.length)) {
+      for (const L of lens) {
+        if (L > E) R.flag = 'over';
+        else if (L < E && L > 0 && mi !== 0 && mi !== n - 1 && !R.flag) R.flag = 'under';
+      }
+    }
+    if (R.flag) flagged++;
+    out.push(R);
+  });
+  // unclosed wedges / slurs are dropped (slurs are only written when both ends were found)
+  Object.values(wedgeOpen).forEach(it => { if (it) it.drop = true; });
+  Object.values(pendingTie).forEach(list => list.forEach(h => { h.tieStart = false; }));
+  return { measures: out, flagged };
+}
+function validateDoc(doc) {
+  computePickup(doc);
+  let flagged = 0;
+  for (const p of doc.parts) { const r = resolvePart(doc, p); p._r = r; p.flagged = r.flagged; flagged += r.flagged; }
   doc.flagged = flagged;
-  doc.pickup = doc.parts.every(p => { const m = p.measures[0]; if (!m) return false; const s = measureSum(m.staffEvents[0], E); return m.staffEvents[0].length && s < E && !m.multiRest; }) && doc.parts.some(p => p.measures[0].staffEvents[0].some(e => e.kind === 'note'));
 }
 
 /* ====================================================================
    MusicXML writer
    ==================================================================== */
 function escapeXml(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-function keyAlter(step, fifths) {
-  if (fifths > 0) return SHARP_ORDER.slice(0, fifths).includes(step) ? 1 : 0;
-  if (fifths < 0) return FLAT_ORDER.slice(0, -fifths).includes(step) ? -1 : 0;
-  return 0;
-}
 function restTypesFor(div) {
   const out = []; let left = Math.round(div);
-  for (const [t, d] of [['whole', 192], ['half', 96], ['quarter', 48], ['eighth', 24], ['16th', 12], ['32nd', 6]]) {
+  for (const [t, d] of [['whole', TYPE_DIV.whole], ['half', TYPE_DIV.half], ['quarter', TYPE_DIV.quarter], ['eighth', TYPE_DIV.eighth], ['16th', TYPE_DIV['16th']], ['32nd', TYPE_DIV['32nd']]]) {
     while (left >= d) { out.push({ type: t, div: d }); left -= d; }
   }
-  return out;
+  return { rests: out, rem: left };
 }
-function pitchOf(pos, clef) {
-  const idx = (CLEF_BASE[clef] ?? 30) + pos;
-  return { step: DIA[((idx % 7) + 7) % 7], octave: Math.floor(idx / 7) };
-}
-
 function buildMusicXML(doc) {
   validateDoc(doc);
-  const E = doc.time.beats * (192 / doc.time.beatType);
   const today = new Date().toISOString().slice(0, 10);
   let x = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">\n<score-partwise version="4.0">\n`;
   x += `  <work><work-title>${escapeXml(doc.title)}</work-title></work>\n  <identification>\n`;
@@ -1323,7 +1946,7 @@ function buildMusicXML(doc) {
   let ch = 1;
   doc.parts.forEach((p, i) => {
     const inst = INST[p.instId] || INST.unknown, id = `P${i + 1}`;
-    let channel = inst.perc ? 10 : ch; if (!inst.perc) { ch++; if (ch === 10) ch++; if (ch > 16) ch = 1; }
+    const channel = inst.perc ? 10 : ch; if (!inst.perc) { ch++; if (ch === 10) ch++; if (ch > 16) ch = 1; }
     x += `    <score-part id="${id}">\n      <part-name>${escapeXml(partDisplayName(p))}</part-name>\n      <part-abbreviation>${escapeXml(inst.abbr + (p.num ? ' ' + p.num : ''))}</part-abbreviation>\n`;
     x += `      <score-instrument id="${id}-I1"><instrument-name>${escapeXml(inst.name)}</instrument-name><instrument-sound>${inst.sound}</instrument-sound></score-instrument>\n`;
     x += `      <midi-instrument id="${id}-I1"><midi-channel>${channel}</midi-channel><midi-program>${inst.gm}</midi-program>${inst.perc ? '<midi-unpitched>39</midi-unpitched>' : ''}<volume>80</volume><pan>0</pan></midi-instrument>\n    </score-part>\n`;
@@ -1331,95 +1954,85 @@ function buildMusicXML(doc) {
   x += `  </part-list>\n`;
 
   doc.parts.forEach((p, pi) => {
-    const inst = INST[p.instId] || INST.unknown, id = `P${pi + 1}`;
-    const tr = partTrans(p);
+    const inst = INST[p.instId] || INST.unknown, id = `P${pi + 1}`, tr = partTrans(p);
+    const multi = p.staffCount > 1;
     x += `  <part id="${id}">\n`;
-    const curClef = [...p.clefs];
     let number = doc.pickup ? 0 : 1;
-    p.measures.forEach((m, mi) => {
-      const implicit = mi === 0 && doc.pickup;
-      x += `    <measure number="${number}"${implicit ? ' implicit="yes"' : ''}>\n`;
-      number++;
-      if (m.repeatStart) x += `      <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>\n`;
+    p._r.measures.forEach(M => {
+      x += `    <measure number="${number}"${M.implicit ? ' implicit="yes"' : ''}>\n`; number++;
+      if (M.repeatStart) x += `      <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>\n`;
       let attrs = '';
-      if (mi === 0) {
+      if (M.initial) {
         attrs += `        <divisions>${DIV}</divisions>\n        <key><fifths>${inst.perc ? 0 : p.fifths}</fifths><mode>major</mode></key>\n`;
-        const sym = doc.time.symbol ? ` symbol="${doc.time.symbol}"` : '';
-        attrs += `        <time${sym}><beats>${doc.time.beats}</beats><beat-type>${doc.time.beatType}</beat-type></time>\n`;
-        if (p.staffCount > 1) attrs += `        <staves>${p.staffCount}</staves>\n`;
-        p.clefs.forEach((c, k) => { const [sg, ln] = CLEF_XML[c] || CLEF_XML.G2; attrs += `        <clef${p.staffCount > 1 ? ` number="${k + 1}"` : ''}><sign>${sg}</sign><line>${ln}</line></clef>\n`; });
-        if (!doc.concert && (tr[0] || tr[1] || tr[2])) attrs += `        <transpose><diatonic>${tr[0]}</diatonic><chromatic>${tr[1]}</chromatic>${tr[2] ? `<octave-change>${tr[2]}</octave-change>` : ''}</transpose>\n`;
+        attrs += `        <time${doc.time.symbol ? ` symbol="${doc.time.symbol}"` : ''}><beats>${M.time.beats}</beats><beat-type>${M.time.beatType}</beat-type></time>\n`;
+        if (multi) attrs += `        <staves>${p.staffCount}</staves>\n`;
+        p.clefs.forEach((c, k) => { const [sg, ln] = CLEF_XML[inst.perc ? 'perc' : c] || CLEF_XML.G2; attrs += `        <clef${multi ? ` number="${k + 1}"` : ''}><sign>${sg}</sign><line>${ln}</line></clef>\n`; });
+        if (p.oneLine) attrs += `        <staff-details><staff-lines>1</staff-lines></staff-details>\n`;
+        if (!doc.concert && !inst.perc && (tr[0] || tr[1] || tr[2])) attrs += `        <transpose><diatonic>${tr[0]}</diatonic><chromatic>${tr[1]}</chromatic>${tr[2] ? `<octave-change>${tr[2]}</octave-change>` : ''}</transpose>\n`;
       } else {
-        (m.clefs || []).forEach((c, k) => {
-          if (c && c !== curClef[k] && !(inst.perc)) { const [sg, ln] = CLEF_XML[c]; attrs += `        <clef${p.staffCount > 1 ? ` number="${k + 1}"` : ''}><sign>${sg}</sign><line>${ln}</line></clef>\n`; curClef[k] = c; }
-        });
+        if (M.keyChange != null) attrs += `        <key><fifths>${M.keyChange}</fifths><mode>major</mode></key>\n`;
+        if (M.timeChange) attrs += `        <time><beats>${M.timeChange.beats}</beats><beat-type>${M.timeChange.beatType}</beat-type></time>\n`;
+        M.clefChanges.forEach(c => { const [sg, ln] = CLEF_XML[c.clef]; attrs += `        <clef${multi ? ` number="${c.k + 1}"` : ''}><sign>${sg}</sign><line>${ln}</line></clef>\n`; });
       }
-      if (m.multiRest > 1) attrs += `        <measure-style><multiple-rest>${m.multiRest}</multiple-rest></measure-style>\n`;
+      if (M.multiRest > 1) attrs += `        <measure-style><multiple-rest>${M.multiRest}</multiple-rest></measure-style>\n`;
       if (attrs) x += `      <attributes>\n${attrs}      </attributes>\n`;
-      if (mi === 0 && pi === 0 && doc.tempo) x += `      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${doc.tempo}</per-minute></metronome></direction-type><sound tempo="${doc.tempo}"/></direction>\n`;
-
-      const staffLens = [];
-      const sums = m.staffEvents.map(evs => (evs.some(e => e.kind !== 'multirest') ? measureSum(evs, E) : 0));
-      const target = implicit ? Math.max(...sums) : Math.max(E, ...sums);
-      m.staffEvents.forEach((evsRaw, k) => {
-        const staffTag = p.staffCount > 1 ? `<staff>${k + 1}</staff>` : '';
-        const voice = p.staffCount > 1 ? k * 4 + 1 : 1;
-        const clef = curClef[k] || p.clefs[k];
-        const evs = evsRaw.filter(e => e.kind !== 'multirest');
-        if (k > 0) x += `      <backup><duration>${staffLens[k - 1]}</duration></backup>\n`;
+      if (M.mi === 0 && pi === 0 && doc.tempo) x += `      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${doc.tempo}</per-minute></metronome></direction-type><sound tempo="${doc.tempo}"/></direction>\n`;
+      let firstChunk = true;
+      M.staves.forEach((st, k) => st.voices.forEach(vc => {
+        if (!firstChunk) x += `      <backup><duration>${M.target}</duration></backup>\n`;
+        firstChunk = false;
+        const voice = k * 4 + vc.v;
+        const staffTag = multi ? `<staff>${k + 1}</staff>` : '';
         let total = 0;
-        if (!evs.length || (evs.length === 1 && evs[0].kind === 'rest' && evs[0].type === 'whole')) {
-          if (implicit) { if (target > 0) { for (const r of restTypesFor(target)) x += `      <note><rest/><duration>${r.div}</duration><voice>${voice}</voice><type>${r.type}</type>${staffTag}</note>\n`; } }
-          else { x += `      <note><rest measure="yes"/><duration>${E}</duration><voice>${voice}</voice>${staffTag}</note>\n`; if (target > E) x += `      <forward><duration>${target - E}</duration><voice>${voice}</voice>${staffTag}</forward>\n`; }
-          staffLens.push(target); return;
-        }
-        const accState = {};
-        const notes = evs;
-        notes.forEach((e, ei) => {
-          const d = Math.round(eventDiv(e));
-          const dotXml = e.dots ? '<dot/>'.repeat(e.dots) : '';
-          if (e.kind === 'rest') {
-            x += `      <note><rest/><duration>${d}</duration><voice>${voice}</voice><type>${e.type}</type>${dotXml}${staffTag}</note>\n`;
-            total += d; return;
-          }
-          const heads = [...e.heads].sort((a, b) => a.pos - b.pos);
-          // beams
-          let beamXml = '';
-          if (e.beams > 0 && !e.hollow) {
-            const prev = notes[ei - 1], next = notes[ei + 1];
-            for (let L = 1; L <= e.beams; L++) {
-              const pB = prev && prev.kind === 'note' && prev.beamNext && prev.beams >= L;
-              const nB = e.beamNext && next && next.kind === 'note' && next.beams >= L;
-              let v = null;
-              if (pB && nB) v = 'continue'; else if (pB) v = 'end'; else if (nB) v = 'begin';
-              else if (L > 1 && ((prev && prev.beamNext) || e.beamNext)) v = e.beamNext ? 'forward hook' : 'backward hook';
-              if (v) beamXml += `<beam number="${L}">${v}</beam>`;
+        const hasTimed = vc.items.some(it => it.t === 'note' || it.t === 'rest');
+        if (vc.measureRest || (!hasTimed && !M.implicit)) {
+          vc.items.filter(it => it.t === 'dir' || it.t === 'attr').forEach(it => { x += serializeAux(it, k, multi); });
+          x += `      <note><rest measure="yes"/><duration>${M.E}</duration><voice>${voice}</voice>${staffTag}</note>\n`;
+          total = M.E;
+        } else {
+          const notes = vc.items.filter(it => it.t === 'note');
+          vc.items.forEach(it => {
+            if (it.t === 'dir' || it.t === 'attr') { x += serializeAux(it, k, multi); return; }
+            const dotXml = it.dots ? '<dot/>'.repeat(it.dots) : '';
+            const tm = it.tuplet ? `<time-modification><actual-notes>${it.tuplet.actual}</actual-notes><normal-notes>${it.tuplet.normal}</normal-notes></time-modification>` : '';
+            const tupN = it.tuplet ? (it.tuplet.first ? '<tuplet type="start"/>' : '') + (it.tuplet.last ? '<tuplet type="stop"/>' : '') : '';
+            if (it.t === 'rest') {
+              x += `      <note><rest/><duration>${it.dur}</duration><voice>${voice}</voice><type>${it.type}</type>${dotXml}${tm}${staffTag}${tupN ? `<notations>${tupN}</notations>` : ''}</note>\n`;
+              total += it.dur; return;
             }
-          }
-          heads.forEach((h, hi) => {
-            const { step, octave } = pitchOf(h.pos, clef);
-            const key = step + octave;
-            let alter;
-            if (h.acc) { alter = h.acc === 'sharp' ? 1 : h.acc === 'flat' ? -1 : 0; accState[key] = alter; }
-            else alter = key in accState ? accState[key] : keyAlter(step, p.fifths);
-            const accXml = h.acc ? `<accidental>${h.acc}</accidental>` : '';
-            const stemXml = e.stem && e.type !== 'whole' ? `<stem>${e.stem.dir}</stem>` : '';
-            const pitchXml = inst.perc
-              ? `<unpitched><display-step>${step}</display-step><display-octave>${octave}</display-octave></unpitched>`
-              : `<pitch><step>${step}</step>${alter ? `<alter>${alter}</alter>` : ''}<octave>${octave}</octave></pitch>`;
-            x += `      <note>${hi ? '<chord/>' : ''}${pitchXml}<duration>${d}</duration><instrument id="${id}-I1"/><voice>${voice}</voice><type>${e.type}</type>${dotXml}${accXml}${stemXml}${staffTag}${hi ? '' : beamXml}</note>\n`;
+            let beamXml = '';
+            if (it.e.beams > 0 && !it.e.hollow) {
+              const same = notes.filter(o => o.grace === it.grace), i = same.indexOf(it), prev = same[i - 1], next = same[i + 1];
+              for (let L = 1; L <= it.e.beams; L++) {
+                const pB = prev && prev.e.beamTo === it.e && prev.e.beams >= L;
+                const nB = next && it.e.beamTo === next.e && next.e.beams >= L;
+                let v = null;
+                if (pB && nB) v = 'continue'; else if (pB) v = 'end'; else if (nB) v = 'begin';
+                else if (L > 1 && ((prev && prev.e.beamTo === it.e) || (next && it.e.beamTo === next.e))) v = (next && it.e.beamTo === next.e) ? 'forward hook' : 'backward hook';
+                if (v) beamXml += `<beam number="${L}">${v}</beam>`;
+              }
+            }
+            it.heads.forEach((h, hi) => {
+              const pitchXml = inst.perc
+                ? `<unpitched><display-step>${h.step}</display-step><display-octave>${h.octave}</display-octave></unpitched>`
+                : `<pitch><step>${h.step}</step>${h.alter ? `<alter>${h.alter}</alter>` : ''}<octave>${h.octave}</octave></pitch>`;
+              const ties = (h.tieStop ? '<tie type="stop"/>' : '') + (h.tieStart ? '<tie type="start"/>' : '');
+              let not = (h.tieStop ? '<tied type="stop"/>' : '') + (h.tieStart ? '<tied type="start"/>' : '');
+              if (!hi) { not += it.slurs.map(sl => `<slur type="${sl.type}" number="${sl.number}"/>`).join('') + tupN; }
+              x += `      <note>${it.grace ? `<grace${it.slash ? ' slash="yes"' : ''}/>` : ''}${hi ? '<chord/>' : ''}${pitchXml}${it.grace ? '' : `<duration>${it.dur}</duration>`}${ties}<instrument id="${id}-I1"/><voice>${voice}</voice><type>${it.type}</type>${it.grace ? '' : dotXml}${h.acc && !it.grace ? `<accidental>${h.acc}</accidental>` : ''}${it.grace ? '' : tm}${it.stemDir ? `<stem>${it.stemDir}</stem>` : ''}${staffTag}${hi ? '' : beamXml}${not ? `<notations>${not}</notations>` : ''}</note>\n`;
+            });
+            if (!it.grace) total += it.dur;
           });
-          total += d;
-        });
-        if (total < target) {
-          for (const r of restTypesFor(target - total)) x += `      <note><rest/><duration>${r.div}</duration><voice>${voice}</voice><type>${r.type}</type>${staffTag}</note>\n`;
-          total = target;
         }
-        staffLens.push(total);
-      });
-      const last = mi === p.measures.length - 1;
-      if (m.repeatEnd) x += `      <barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>\n`;
-      else if (last || m.final) x += `      <barline location="right"><bar-style>light-heavy</bar-style></barline>\n`;
+        if (total < M.target) {
+          const { rests, rem } = restTypesFor(M.target - total);
+          rests.forEach(r => { x += `      <note><rest/><duration>${r.div}</duration><voice>${voice}</voice><type>${r.type}</type>${staffTag}</note>\n`; });
+          if (rem > 0) x += `      <forward><duration>${rem}</duration><voice>${voice}</voice>${staffTag}</forward>\n`;
+        }
+      }));
+      const last = M.mi === p._r.measures.length - 1;
+      if (M.repeatEnd) x += `      <barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>\n`;
+      else if (last || (M.final && p.measures.slice(M.mi + 1).some(m => !m.padded))) x += `      <barline location="right"><bar-style>light-heavy</bar-style></barline>\n`;
       x += `    </measure>\n`;
     });
     x += `  </part>\n`;
@@ -1427,9 +2040,21 @@ function buildMusicXML(doc) {
   x += `</score-partwise>\n`;
   return x;
 }
+function serializeAux(it, k, multi) {
+  const staffTag = multi ? `<staff>${k + 1}</staff>` : '';
+  if (it.drop) return '';
+  if (it.t === 'attr') {
+    if (it.key != null) return `      <attributes><key><fifths>${it.key}</fifths><mode>major</mode></key></attributes>\n`;
+    if (it.clef) { const [sg, ln] = CLEF_XML[it.clef.clef]; return `      <attributes><clef${multi ? ` number="${it.clef.k + 1}"` : ''}><sign>${sg}</sign><line>${ln}</line></clef></attributes>\n`; }
+    return '';
+  }
+  if (it.dyn) return `      <direction placement="below"><direction-type><dynamics><${it.dyn}/></dynamics></direction-type>${staffTag}<sound dynamics="${DYN_LEVEL[it.dyn] || 80}"/></direction>\n`;
+  if (it.wedge) return `      <direction placement="below"><direction-type><wedge type="${it.wedge}" number="1"/></direction-type>${staffTag}</direction>\n`;
+  return '';
+}
 
 /* ====================================================================
-   ZIP (store) writer for .mxl and bulk downloads
+   ZIP writer
    ==================================================================== */
 function crc32(bytes) {
   let c = 0xffffffff;
@@ -1482,7 +2107,6 @@ function setProgress(text, frac) {
   document.getElementById('progressBar').style.width = Math.round(frac * 100) + '%';
 }
 const nextFrame = () => new Promise(r => setTimeout(r, 0));
-
 async function renderPdfPage(page, scale) {
   const vp = page.getViewport({ scale });
   const c = document.createElement('canvas'); c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
@@ -1491,11 +2115,16 @@ async function renderPdfPage(page, scale) {
   await page.render({ canvasContext: ctx, viewport: vp, background: 'white' }).promise;
   return { canvas: c, vp };
 }
-function quickInterline(canvas) {
-  const g = grayFromCanvas(canvas); const b = binarize(g, otsu(g));
-  return estimateSpacing(b, canvas.width, canvas.height).iL;
+function quickInterline(canvas, scan) {
+  const W = canvas.width, H = canvas.height;
+  const g = grayFromCanvas(canvas); const b = scan ? adaptiveBinarize(g, W, H) : binarize(g, otsu(g));
+  const sp = estimateSpacing(b, W, H);
+  const vr = vRuns(b, W, H);
+  const f = findStaves(b, hRuns(b, W, H), vr, W, H, { iL: Math.max(5, sp.iL), thick: sp.thick });
+  if (f.staves.length) return median(f.staves.map(s => s.iL));
+  if (f.singles.length) return oneLineInterline(b, vr, W, f.singles[0], sp.thick);
+  return sp.iL >= 5 && sp.iL <= 60 ? sp.iL : 0;
 }
-
 async function processPdf(file, onPage) {
   const buf = await file.arrayBuffer();
   const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
@@ -1503,23 +2132,23 @@ async function processPdf(file, onPage) {
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const base = page.getViewport({ scale: 1 });
+    const tc = await page.getTextContent();
+    const scan = !tc.items.some(it => it.str && it.str.trim());
     let scale = Math.min(2, Math.sqrt(MAX_PIXELS / (base.width * base.height)));
     let { canvas, vp } = await renderPdfPage(page, scale);
-    const iL = quickInterline(canvas);
+    const iL = quickInterline(canvas, scan);
     if (iL >= 4) {
       let s2 = scale * TARGET_IL / iL;
-      s2 = Math.min(s2, Math.sqrt(MAX_PIXELS / (base.width * base.height)), 6);
-      s2 = Math.max(s2, 1);
+      s2 = Math.max(1, Math.min(s2, Math.sqrt(MAX_PIXELS / (base.width * base.height)), 6));
       if (Math.abs(s2 - scale) / scale > 0.12) { scale = s2; ({ canvas, vp } = await renderPdfPage(page, scale)); }
     }
-    const tc = await page.getTextContent();
     const items = tc.items.filter(it => it.str && it.str.trim()).map(it => {
       const tx = window.pdfjsLib.Util.transform(vp.transform, it.transform);
       const fh = Math.hypot(tx[2], tx[3]);
       return { str: it.str, x: tx[4], baseline: tx[5], y: tx[5] - fh, w: it.width * scale, h: fh };
     });
     await nextFrame();
-    const res = analyzePage(canvas, items);
+    const res = analyzePage(canvas, items, { scan });
     res.textLines = groupTextLines(items);
     delete res.canvas;
     pages.push(res);
@@ -1528,27 +2157,27 @@ async function processPdf(file, onPage) {
   }
   return pages;
 }
-async function canvasFromImageFile(file) {
+async function imageFromFile(file) {
   const url = URL.createObjectURL(file);
   try {
-    const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('Could not read image')); im.src = url; });
-    return img;
+    return await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('Could not read image')); im.src = url; });
   } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
 }
 function drawScaled(src, w, h, scale) {
   const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * scale)); c.height = Math.max(1, Math.round(h * scale));
   const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
-  ctx.imageSmoothingQuality = 'high'; ctx.drawImage(src, 0, 0, c.width, c.height); return c;
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(src, 0, 0, c.width, c.height); return c;
 }
-function analyzeImageSource(src, w, h, textItems) {
+function analyzeImageSource(src, w, h, textItems, opts) {
+  opts = opts || { scan: true };
   let scale = Math.min(1, Math.sqrt(MAX_PIXELS / (w * h)));
   let c = drawScaled(src, w, h, scale);
-  const iL = quickInterline(c);
+  const iL = quickInterline(c, opts.scan);
   if (iL >= 4) {
-    let s2 = Math.min(scale * TARGET_IL / iL, Math.sqrt(MAX_PIXELS / (w * h)), 4);
+    const s2 = Math.min(scale * TARGET_IL / iL, Math.sqrt(MAX_PIXELS / (w * h)), 5);
     if (Math.abs(s2 - scale) / scale > 0.12) { const f = s2 / scale; scale = s2; c = drawScaled(src, w, h, scale); textItems = (textItems || []).map(t => ({ ...t, x: t.x * f, y: t.y * f, baseline: t.baseline * f, w: t.w * f, h: t.h * f })); }
   }
-  const res = analyzePage(c, textItems || []);
+  const res = analyzePage(c, textItems || [], opts);
   res.textLines = groupTextLines(textItems || []);
   delete res.canvas;
   return res;
@@ -1558,7 +2187,7 @@ const convertedItems = [];
 async function processDroppedFiles(fileList) {
   const files = Array.from(fileList || []);
   if (!files.length) return;
-  buildDigitTemplates();
+  buildTemplates();
   for (let fi = 0; fi < files.length; fi++) {
     const file = files[fi];
     const ext = file.name.split('.').pop().toLowerCase();
@@ -1571,11 +2200,10 @@ async function processDroppedFiles(fileList) {
         if (!window.pdfjsLib) throw new Error('The PDF library failed to load. Check your connection and reload.');
         pages = await processPdf(file, (p, n) => setProgress(label(`page ${p} of ${n}`), (fi + p / n) / files.length));
       } else if (['png', 'jpg', 'jpeg'].includes(ext)) {
-        const img = await canvasFromImageFile(file);
-        pages = [analyzeImageSource(img, img.naturalWidth, img.naturalHeight, [])];
+        const img = await imageFromFile(file);
+        pages = [analyzeImageSource(img, img.naturalWidth, img.naturalHeight, [], { scan: true })];
       } else throw new Error('Unsupported file type. Use PDF, PNG or JPG.');
-      const doc = assembleDocument(file.name, pages);
-      convertedItems.unshift(doc);
+      convertedItems.unshift(assembleDocument(file.name, pages));
     } catch (err) {
       console.error(err);
       convertedItems.unshift({ fileName: file.name, error: err.message || String(err) });
@@ -1607,7 +2235,10 @@ function concertFifths(written, chromatic) {
 const instOptions = sel => INSTRUMENTS.filter(i => i.id !== 'unknown' || sel === 'unknown').map(i => `<option value="${i.id}"${i.id === sel ? ' selected' : ''}>${escapeXml(i.id === 'unknown' ? 'Unknown (choose…)' : i.name)}</option>`).join('');
 const keyOptions = sel => Array.from({ length: 15 }, (_, k) => k - 7).map(f => `<option value="${f}"${f === sel ? ' selected' : ''}>${escapeXml(keyName(f))}</option>`).join('');
 const TIME_CHOICES = ['2/2', '2/4', '3/4', '4/4', '5/4', '6/4', '3/8', '6/8', '9/8', '12/8'];
-
+function featureChips(f) {
+  const list = [[f.tuplets, 'tuplet'], [f.grace, 'grace note'], [f.ties, 'tie'], [f.slurs, 'slur'], [f.dynamics, 'dynamic'], [f.hairpins, 'hairpin'], [f.twoVoiceBars, 'two-voice bar'], [f.clefChanges, 'clef change'], [f.keyChanges, 'key change'], [f.timeChanges, 'time change'], [f.oneLine, 'one-line staff']];
+  return list.filter(([n]) => n).map(([n, l]) => `<span class="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 border border-slate-700">${n} ${l}${n === 1 ? '' : 's'}</span>`).join('');
+}
 function renderConvertedList() {
   const section = document.getElementById('resultsSection');
   const container = document.getElementById('convertedCards');
@@ -1624,7 +2255,7 @@ function renderConvertedList() {
     }
     validateDoc(doc);
     const timeVal = `${doc.time.beats}/${doc.time.beatType}`;
-    const timeOpts = [...new Set([timeVal, ...TIME_CHOICES])].map(t => `<option value="${t}"${t === timeVal ? ' selected' : ''}>${t}${t === timeVal ? (doc.timeSource === 'inferred' ? ' (inferred)' : ' (detected)') : ''}</option>`).join('');
+    const timeOpts = [...new Set([timeVal, ...TIME_CHOICES])].map(t => `<option value="${t}"${t === timeVal ? ' selected' : ''}>${t}${t === timeVal ? (doc.timeSource === 'inferred' ? ' (inferred)' : doc.timeSource === 'manual' ? '' : ' (detected)') : ''}</option>`).join('');
     const totalMeasures = doc.parts[0]?.measures.length || 0;
     const parts = doc.parts.map((p, pi) => {
       const inst = INST[p.instId] || INST.unknown;
@@ -1637,12 +2268,12 @@ function renderConvertedList() {
           <div class="flex flex-wrap items-center gap-2">
             <select data-act="inst" data-idx="${idx}" data-part="${pi}" aria-label="Instrument">${instOptions(p.instId)}</select>
             <input type="text" data-act="num" data-idx="${idx}" data-part="${pi}" value="${escapeXml(p.num || '')}" placeholder="#" class="w-10 text-center" aria-label="Chair number" />
-            <select data-act="key" data-idx="${idx}" data-part="${pi}" aria-label="Written key">${keyOptions(p.fifths)}</select>
-            <span class="text-slate-400 ml-auto">${p.measures.length} bars · ${notes} notes${p.staffCount > 1 ? ' · grand staff' : ''}</span>
+            ${inst.perc ? '' : `<select data-act="key" data-idx="${idx}" data-part="${pi}" aria-label="Starting written key">${keyOptions(p.fifths)}</select>`}
+            <span class="text-slate-400 ml-auto">${p.measures.length} bars · ${notes} notes${p.staffCount > 1 ? ' · grand staff' : ''}${p.oneLine ? ' · one-line staff' : ''}</span>
           </div>
           <div class="flex flex-wrap gap-1.5">
-            <span class="px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-300 border border-blue-500/30">${p.clefs.map(c => CLEF_LABEL[c]).join(' + ')} clef</span>
-            <span class="px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">${transposing ? `Written ${MAJOR[p.fifths]} → sounds ${MAJOR[cf]} (${tr[1] > 0 ? '+' : ''}${tr[1] + 12 * tr[2]} semitones)` : (tr[2] && !doc.concert ? `Octave transposition (${tr[2] > 0 ? '+' : ''}${tr[2]} oct)` : 'Concert pitch')}</span>
+            <span class="px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-300 border border-blue-500/30">${p.clefs.map(c => CLEF_LABEL[inst.perc ? 'perc' : c]).join(' + ')} clef</span>
+            ${inst.perc ? '' : `<span class="px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">${transposing ? `Written ${MAJOR[p.fifths]} → sounds ${MAJOR[cf]} (${tr[1] > 0 ? '+' : ''}${tr[1] + 12 * tr[2]} semitones)` : (tr[2] && !doc.concert ? `Octave transposition (${tr[2] > 0 ? '+' : ''}${tr[2]} oct)` : 'Concert pitch')}</span>`}
             <span class="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono text-[11px]">${inst.sound}</span>
             ${p.flagged ? `<span class="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">${p.flagged} bar(s) to check</span>` : `<span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300/80 border border-emerald-500/20">all bars add up</span>`}
           </div>
@@ -1661,6 +2292,7 @@ function renderConvertedList() {
             <label class="flex items-center gap-1.5" title="Tick if the PDF is a score in C: transposing instruments are already written at sounding pitch"><input type="checkbox" data-act="concert" data-idx="${idx}" ${doc.concert ? 'checked' : ''} /> Score is in concert pitch</label>
             ${doc.pickup ? '<span class="text-slate-400">Pickup bar detected</span>' : ''}
           </div>
+          <div class="flex flex-wrap gap-1.5 text-[11px]">${featureChips(doc.features)}</div>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
           <button type="button" data-act="preview" data-idx="${idx}" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition">Preview</button>
@@ -1669,12 +2301,11 @@ function renderConvertedList() {
           <button type="button" data-act="remove" data-idx="${idx}" class="px-2 py-1.5 text-xs text-slate-500 hover:text-rose-400" aria-label="Remove">✕</button>
         </div>
       </div>
-      ${doc.warnings.length || doc.flagged ? `<ul class="text-[11px] text-amber-200/90 space-y-0.5 list-disc pl-4">${doc.warnings.map(w => `<li>${escapeXml(w)}</li>`).join('')}${doc.flagged ? `<li>${doc.flagged} bar(s) don't match ${timeVal}. These usually contain tuplets, grace notes, two voices or a misread rhythm. They're outlined red in the detection overlay; fix them in Flat after import.</li>` : ''}</ul>` : ''}
+      ${doc.warnings.length || doc.flagged ? `<ul class="text-[11px] text-amber-200/90 space-y-0.5 list-disc pl-4">${doc.warnings.map(w => `<li>${escapeXml(w)}</li>`).join('')}${doc.flagged ? `<li>${doc.flagged} bar(s) don't add up to the time signature. They're outlined red in the detection overlay; fix them in Flat after import.</li>` : ''}</ul>` : ''}
       <div class="space-y-2">${parts}</div>`;
     container.appendChild(card);
   });
 }
-
 function onCardEvent(e) {
   const el = e.target.closest('[data-act]'); if (!el) return;
   const doc = convertedItems[parseInt(el.dataset.idx, 10)]; if (!doc) return;
@@ -1687,7 +2318,7 @@ function onCardEvent(e) {
     return;
   }
   if (e.type !== 'change') return;
-  if (act === 'inst' && p) { p.instId = el.value; const inst = INST[p.instId]; if (!p.clefsDetected) p.clefsDetected = [...p.clefs]; if (p.staffCount === 1 && !p.measures.some(m => m.clefs && m.clefs[0])) p.clefs = [inst.clef]; }
+  if (act === 'inst' && p) { p.instId = el.value; const inst = INST[p.instId]; if (p.staffCount === 1 && !p.measures.some(m => m.clefs && m.clefs[0])) p.clefs = [inst.clef]; }
   else if (act === 'num' && p) p.num = el.value.trim() || null;
   else if (act === 'key' && p) p.fifths = parseInt(el.value, 10);
   else if (act === 'time') { const [b, t] = el.value.split('/').map(Number); doc.time = { beats: b, beatType: t, symbol: null }; doc.timeSource = 'manual'; }
@@ -1717,7 +2348,6 @@ async function openPreview(doc) {
   document.getElementById('previewTitle').textContent = doc.title;
   document.getElementById('previewSubtitle').textContent = `${doc.parts.map(partDisplayName).join(' · ')} — ${doc.time.beats}/${doc.time.beatType}${doc.tempo ? ' · ♩=' + doc.tempo : ''}`;
   const modal = document.getElementById('previewModal'); modal.classList.remove('hidden'); modal.classList.add('flex');
-  // overlay pages with flagged measures outlined
   const host = document.getElementById('overlayHost'); host.innerHTML = '';
   doc.overlays.forEach((ov, pi) => {
     const wrap = document.createElement('div'); wrap.className = 'relative bg-white shadow rounded overflow-hidden';
@@ -1725,10 +2355,10 @@ async function openPreview(doc) {
     const img = wrap.querySelector('img');
     img.onload = () => {
       const f = img.clientWidth / img.naturalWidth * ov.scale;
-      for (const p of doc.parts) for (const m of p.measures) if (m.flag && m.page === pi) for (const r of m.staffRefs) if (r) {
+      for (const p of doc.parts) for (const M of p._r.measures) if (M.flag && M.page === pi) for (const r of M.staffRefs || []) if (r) {
         const b = document.createElement('div');
         b.style.cssText = `position:absolute;left:${r.x0 * f}px;top:${(r.top - 6) * f}px;width:${Math.max(4, (r.x1 - r.x0) * f)}px;height:${(r.bottom - r.top + 12) * f}px;border:2px solid #e11d48;border-radius:3px;pointer-events:none`;
-        b.title = m.flag === 'over' ? 'More beats than the time signature' : 'Fewer beats than the time signature';
+        b.title = M.flag === 'over' ? 'More beats than the time signature' : 'Fewer beats than the time signature';
         wrap.appendChild(b);
       }
     };
@@ -1745,11 +2375,11 @@ async function openPreview(doc) {
     if (currentPreview !== doc) return;
     osmd.render();
   } catch (err) {
-    eng.innerHTML = `<p class="p-4 text-slate-600 text-sm">Couldn't render the engraved preview (${escapeXml(err.message || err)}). The detection overlay tab still works, and the file downloads are unaffected.</p>`;
+    eng.innerHTML = `<p class="p-4 text-slate-600 text-sm">Couldn't render the engraved preview (${escapeXml(err.message || err)}). The detection overlay tab still works, and downloads are unaffected.</p>`;
   }
 }
 
-/* ---------- playback (sounding pitch, all parts) ---------- */
+/* ---------- playback (sounding pitch, all parts, ties, dynamics) ---------- */
 let audioCtx = null, playingNodes = [], playTimer = null;
 function stopPlayback() {
   playingNodes.forEach(n => { try { n.stop(); } catch (_) {} }); playingNodes = [];
@@ -1761,7 +2391,6 @@ function playDoc(doc) {
   validateDoc(doc);
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (audioCtx.state === 'suspended') audioCtx.resume();
-  const E = doc.time.beats * (192 / doc.time.beatType);
   const secPerDiv = 60 / (doc.tempo || 100) / DIV;
   const t0 = audioCtx.currentTime + 0.1;
   const master = audioCtx.createGain(); master.gain.value = 0.5 / Math.sqrt(Math.max(1, doc.parts.length)); master.connect(audioCtx.destination);
@@ -1769,141 +2398,187 @@ function playDoc(doc) {
   for (const p of doc.parts) {
     const inst = INST[p.instId] || INST.unknown, tr = partTrans(p);
     const wave = { brass: 'sawtooth', reed: 'square', strings: 'sawtooth', flute: 'sine', mallet: 'triangle', keys: 'triangle', pluck: 'triangle', perc: 'square' }[inst.fam] || 'triangle';
+    const decay = ['pluck', 'mallet', 'keys', 'perc'].includes(inst.fam);
     let mStart = 0;
-    p.measures.forEach((m, mi) => {
-      const firstLen = mi === 0 && doc.pickup ? measureSum(m.staffEvents[0], E) : E;
-      m.staffEvents.forEach((evs, k) => {
-        const clef = (m.clefs && m.clefs[k]) || p.clefs[k];
-        let t = mStart; const accState = {};
-        const real = evs.filter(e => e.kind !== 'multirest');
-        if (real.length === 1 && real[0].kind === 'rest' && real[0].type === 'whole') return;
-        for (const e of real) {
-          const d = eventDiv(e);
-          if (e.kind === 'note') for (const h of e.heads) {
-            const { step, octave } = pitchOf(h.pos, clef);
-            const key = step + octave;
-            let alter; if (h.acc) { alter = h.acc === 'sharp' ? 1 : h.acc === 'flat' ? -1 : 0; accState[key] = alter; } else alter = key in accState ? accState[key] : keyAlter(step, p.fifths);
-            let midi = (octave + 1) * 12 + SEMI[step] + alter;
-            if (!doc.concert) midi += tr[1] + 12 * tr[2];
-            const st = t0 + t * secPerDiv, du = Math.max(0.06, d * secPerDiv * 0.92);
+    const vel = {};
+    for (const M of p._r.measures) {
+      M.staves.forEach((st, k) => st.voices.forEach(vc => {
+        let t = mStart;
+        for (const it of vc.items) {
+          if (it.t === 'dir' && it.dyn) { vel[k] = (DYN_LEVEL[it.dyn] || 80) / 100; continue; }
+          if (it.t === 'rest') { t += it.dur; continue; }
+          if (it.t !== 'note') continue;
+          const gd = it.grace ? Math.round(DIV / 8) : 0;
+          for (const h of it.heads) {
+            if (h.tieStop) continue;
+            let dur = it.grace ? gd : it.dur, nx = h.tieNext; let guard = 0;
+            while (nx && guard++ < 64) { dur += nx._dur || 0; nx = nx.tieNext; }
+            let midi = (h.octave + 1) * 12 + SEMI[h.step] + h.alter;
+            if (!doc.concert && !inst.perc) midi += tr[1] + 12 * tr[2];
+            const st0 = t0 + (it.grace ? t - gd : t) * secPerDiv, du = Math.max(0.05, dur * secPerDiv * 0.92);
             const osc = audioCtx.createOscillator(), g = audioCtx.createGain(), f = audioCtx.createBiquadFilter();
             f.type = 'lowpass'; f.frequency.value = inst.perc ? 3000 : 2400;
             osc.type = wave; osc.frequency.value = inst.perc ? 180 : 440 * Math.pow(2, (midi - 69) / 12);
-            g.gain.setValueAtTime(0.0001, st); g.gain.linearRampToValueAtTime(0.25, st + 0.015);
-            g.gain.setTargetAtTime(inst.fam === 'pluck' || inst.fam === 'mallet' || inst.fam === 'keys' || inst.perc ? 0.0001 : 0.17, st + 0.03, inst.perc ? 0.03 : 0.12);
-            g.gain.setTargetAtTime(0.0001, st + du, 0.03);
-            osc.connect(f); f.connect(g); g.connect(master); osc.start(st); osc.stop(st + du + 0.25);
+            const peak = 0.28 * (vel[k] ?? 0.8);
+            g.gain.setValueAtTime(0.0001, st0); g.gain.linearRampToValueAtTime(peak, st0 + 0.015);
+            g.gain.setTargetAtTime(decay ? 0.0001 : peak * 0.7, st0 + 0.03, inst.perc ? 0.03 : 0.12);
+            g.gain.setTargetAtTime(0.0001, st0 + du, 0.03);
+            osc.connect(f); f.connect(g); g.connect(master); osc.start(st0); osc.stop(st0 + du + 0.25);
             playingNodes.push(osc);
           }
-          t += d;
+          if (!it.grace) t += it.dur;
         }
-      });
-      mStart += firstLen;
-    });
+      }));
+      mStart += M.implicit ? M.target : M.E;
+    }
     end = Math.max(end, mStart);
   }
   document.getElementById('btnPreviewPlay').textContent = '■ Stop';
   playTimer = setTimeout(stopPlayback, (end * secPerDiv + 1) * 1000);
 }
 
-/* ---------- sample page: a synthetic engraved part, run through the real recognizer ---------- */
-function drawSamplePage() {
-  const iL = 20, W = 1700, H = 1100;
-  const c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d');
-  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.fillStyle = '#000'; g.strokeStyle = '#000';
-  const text = [];
-  const addText = (str, x, y, size, align) => { g.font = `${size}px Georgia, serif`; g.textAlign = align || 'left'; g.fillText(str, x, y); const w = g.measureText(str).width; text.push({ str, x: align === 'center' ? x - w / 2 : align === 'right' ? x - w : x, baseline: y, y: y - size, w, h: size }); g.textAlign = 'left'; };
-  addText('Sample March', W / 2, 90, 44, 'center');
-  addText('Trumpet in B♭ 1', 90, 150, 24);
-  addText('Arr. Demo', W - 90, 150, 22, 'right');
-  addText('♩ = 112', 160, 205, 22);
-  const left = 90, right = W - 90;
-  const sysTops = [260, 620];
-  const notehead = (x, y, hollow) => {
-    g.save(); g.translate(x, y); g.rotate(-0.35); g.beginPath(); g.ellipse(0, 0, 0.66 * iL, 0.44 * iL, 0, 0, Math.PI * 2); g.fill();
-    if (hollow) { g.fillStyle = '#fff'; g.beginPath(); g.ellipse(0, 0, 0.45 * iL, 0.2 * iL, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#000'; }
-    g.restore();
-  };
-  const sharp = (x, y) => { g.fillRect(x, y - 1.35 * iL, 2.4, 2.6 * iL); g.fillRect(x + 0.45 * iL, y - 1.25 * iL - 0.15 * iL, 2.4, 2.6 * iL);
-    for (const dy of [-0.45, 0.45]) { g.beginPath(); g.moveTo(x - 0.15 * iL, y + dy * iL + 0.12 * iL); g.lineTo(x + 0.75 * iL, y + dy * iL - 0.12 * iL); g.lineTo(x + 0.75 * iL, y + dy * iL + 0.28 * iL); g.lineTo(x - 0.15 * iL, y + dy * iL + 0.52 * iL); g.closePath(); g.fill(); } };
-  const flat = (x, y) => { g.fillRect(x, y - 1.9 * iL, 2.4, 2.4 * iL); g.lineWidth = 0.17 * iL; g.beginPath(); g.moveTo(x + 1, y + 0.45 * iL); g.bezierCurveTo(x + 0.9 * iL, y - 0.1 * iL, x + 0.8 * iL, y - 0.75 * iL, x + 1, y - 0.15 * iL); g.stroke(); };
-  const natural = (x, y) => { g.fillRect(x, y - 1.4 * iL, 2.4, 1.95 * iL); g.fillRect(x + 0.5 * iL, y - 0.5 * iL, 2.4, 1.95 * iL); g.fillRect(x, y - 0.55 * iL, 0.55 * iL, 0.3 * iL); g.fillRect(x, y + 0.25 * iL, 0.55 * iL, 0.3 * iL); };
-  const trebleClef = (x, top) => { g.lineWidth = 0.22 * iL; g.beginPath(); g.moveTo(x + 0.9 * iL, top + 5.6 * iL); g.lineTo(x + 0.9 * iL, top - 1.4 * iL);
-    g.bezierCurveTo(x + 2.2 * iL, top - 0.2 * iL, x - 0.4 * iL, top + 1.5 * iL, x, top + 2.8 * iL); g.bezierCurveTo(x + 0.4 * iL, top + 4.2 * iL, x + 2.2 * iL, top + 3.6 * iL, x + 1.9 * iL, top + 2.6 * iL);
-    g.bezierCurveTo(x + 1.6 * iL, top + 1.8 * iL, x + 0.5 * iL, top + 2.2 * iL, x + 0.9 * iL, top + 3.0 * iL); g.stroke(); g.beginPath(); g.arc(x + 0.5 * iL, top + 5.4 * iL, 0.35 * iL, 0, Math.PI * 2); g.fill(); };
-  const quarterRest = (x, mid) => { g.lineWidth = 0.3 * iL; g.beginPath(); g.moveTo(x, mid - 1.4 * iL); g.lineTo(x + 0.6 * iL, mid - 0.5 * iL); g.lineTo(x, mid + 0.2 * iL); g.lineTo(x + 0.6 * iL, mid + 0.9 * iL); g.lineTo(x + 0.1 * iL, mid + 1.3 * iL); g.stroke(); };
+/* ---------- sample pages: synthetic engraving run through the real recognizer ---------- */
+function samplePages() {
+  const iL = 20;
+  const pageOf = (W, H) => { const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.fillStyle = '#000'; g.strokeStyle = '#000'; return { c, g, text: [] }; };
+  const addText = (P, str, x, y, size, align, font) => { const g = P.g; g.font = font || `${size}px Georgia, serif`; g.textAlign = align || 'left'; g.fillText(str, x, y); const w = g.measureText(str).width; P.text.push({ str, x: align === 'center' ? x - w / 2 : align === 'right' ? x - w : x, baseline: y, y: y - size, w, h: size }); g.textAlign = 'left'; };
   const yOf = (top, pos) => top + 4 * iL - pos * iL / 2;
-  // Music: [pos, type, opts] per measure. Treble: pos 0 = E4 (bottom line).
-  const sys1 = [
-    [[4, 'q'], [5, 'q'], [6, 'q'], [7, 'q']],
-    [[8, 'h'], [6, 'q', { dot: false }], [4, 'q']],
-    [[2, 'e'], [3, 'e'], [4, 'e'], [5, 'e'], [6, 'q', { acc: 'natural' }], ['rest', 'q']],
-    [[-2, 'h', { dot: true }], [3, 'q', { acc: 'flat' }]]
-  ];
-  const sys2 = [
-    [[9, 'q', { dot: true }], [8, 'e'], [7, 'q'], [6, 'q']],
-    [[4, 'e'], [6, 'e'], [8, 'e'], [10, 'e'], [8, 'h']],
-    [['rest', 'h'], [4, 'q'], [0, 'q', { acc: 'sharp' }]],
-    [[2, 'w']]
-  ];
-  sysTops.forEach((top, si) => {
-    // clef, key (2 sharps: F5, C5), time sig on first system
-    trebleClef(left + 0.6 * iL, top);
-    sharp(left + 3.2 * iL, yOf(top, 8)); sharp(left + 4.3 * iL, yOf(top, 5));
-    let x = left + 5.6 * iL;
-    if (si === 0) { g.font = `bold ${2.25 * iL}px "Times New Roman", serif`; g.textBaseline = 'alphabetic'; g.fillText('4', x, top + 1.95 * iL); g.fillText('4', x, top + 3.95 * iL); x += 1.8 * iL; }
-    const measures = si === 0 ? sys1 : sys2;
-    const mw = (right - x - iL) / measures.length;
-    measures.forEach((meas, mi) => {
-      const mx0 = x + mi * mw + 1.4 * iL;
-      const slots = meas.length;
-      const pts = [];
-      meas.forEach(([pos, type, opt = {}], k) => {
-        const nx = mx0 + k * (mw - 2.4 * iL) / slots;
-        if (pos === 'rest') {
-          if (type === 'q') quarterRest(nx, top + 2 * iL);
-          if (type === 'h') g.fillRect(nx - 0.6 * iL, top + 1.5 * iL, 1.2 * iL, 0.5 * iL);
-          return;
-        }
-        const y = yOf(top, pos);
-        if (opt.acc === 'sharp') sharp(nx - 1.7 * iL, y); if (opt.acc === 'flat') flat(nx - 1.5 * iL, y); if (opt.acc === 'natural') natural(nx - 1.5 * iL, y);
-        if (type === 'w') { g.save(); g.translate(nx, y); g.beginPath(); g.ellipse(0, 0, 0.85 * iL, 0.5 * iL, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#fff'; g.rotate(-0.9); g.beginPath(); g.ellipse(0, 0, 0.42 * iL, 0.26 * iL, 0, 0, Math.PI * 2); g.fill(); g.restore(); }
-        else notehead(nx, y, type === 'h');
-        if (type !== 'w') {
-          const up = pos < 4;
-          const sx = up ? nx + 0.6 * iL : nx - 0.6 * iL;
-          const ey = up ? y - 3.5 * iL : y + 3.5 * iL;
-          if (type !== 'e') g.fillRect(sx - 1.2, Math.min(y, ey), 2.4, Math.abs(ey - y));
-          pts.push({ sx, ey, y, type, up });
-        }
-        if (opt.dot || (type === 'q' && opt.dot)) { g.beginPath(); g.arc(nx + 1.3 * iL, pos % 2 === 0 ? y - 0.5 * iL : y, 0.2 * iL, 0, Math.PI * 2); g.fill(); }
-        if (pos <= -2) for (let lp = -2; lp >= pos; lp -= 2) g.fillRect(nx - 1.0 * iL, yOf(top, lp) - 1.2, 2 * iL, 2.4);
-        if (pos >= 10) for (let lp = 10; lp <= pos; lp += 2) g.fillRect(nx - 1.0 * iL, yOf(top, lp) - 1.2, 2 * iL, 2.4);
-      });
-      // beam consecutive eighths in pairs; lone eighth gets a flag
-      const eighths = pts.filter(p => p.type === 'e');
-      for (let k = 0; k < eighths.length; k += 2) {
-        const a = eighths[k], b = eighths[k + 1];
-        if (b) {
-          const ey = a.up ? Math.min(a.ey, b.ey) : Math.max(a.ey, b.ey);
-          for (const q of [a, b]) g.fillRect(q.sx - 1.2, Math.min(q.y, ey), 2.4, Math.abs(ey - q.y));
-          g.fillRect(a.sx - 1.2, a.up ? ey : ey - 0.5 * iL, b.sx - a.sx + 2.4, 0.5 * iL);
-        } else {
-          g.fillRect(a.sx - 1.2, Math.min(a.y, a.ey), 2.4, Math.abs(a.ey - a.y));
-          g.lineWidth = 0.3 * iL; g.beginPath(); g.moveTo(a.sx, a.ey); g.quadraticCurveTo(a.sx + 1.1 * iL, a.ey + (a.up ? 1.2 : -1.2) * iL, a.sx + 0.7 * iL, a.ey + (a.up ? 2.6 : -2.6) * iL); g.stroke();
-        }
+  const head = (g, x, y, kind, sc) => {
+    sc = sc || 1;
+    g.save(); g.translate(x, y);
+    if (kind === 'w') { g.beginPath(); g.ellipse(0, 0, 0.85 * iL, 0.5 * iL, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#fff'; g.rotate(-0.9); g.beginPath(); g.ellipse(0, 0, 0.42 * iL, 0.26 * iL, 0, 0, Math.PI * 2); g.fill(); }
+    else { g.rotate(-0.35); g.beginPath(); g.ellipse(0, 0, 0.64 * iL * sc, 0.48 * iL * sc, 0, 0, Math.PI * 2); g.fill(); if (kind === 'h') { g.fillStyle = '#fff'; g.beginPath(); g.ellipse(0, 0, 0.45 * iL, 0.2 * iL, 0, 0, Math.PI * 2); g.fill(); } }
+    g.restore(); g.fillStyle = '#000';
+  };
+  const sharp = (g, x, y) => { g.fillRect(x, y - 1.35 * iL, 2.4, 2.6 * iL); g.fillRect(x + 0.45 * iL, y - 1.4 * iL, 2.4, 2.6 * iL); for (const dy of [-0.45, 0.45]) { g.beginPath(); g.moveTo(x - 0.15 * iL, y + dy * iL + 0.12 * iL); g.lineTo(x + 0.75 * iL, y + dy * iL - 0.12 * iL); g.lineTo(x + 0.75 * iL, y + dy * iL + 0.28 * iL); g.lineTo(x - 0.15 * iL, y + dy * iL + 0.52 * iL); g.closePath(); g.fill(); } };
+  const flat = (g, x, y) => { g.fillRect(x, y - 1.9 * iL, 2.4, 2.4 * iL); g.lineWidth = 0.17 * iL; g.beginPath(); g.moveTo(x + 1, y + 0.45 * iL); g.bezierCurveTo(x + 0.9 * iL, y - 0.1 * iL, x + 0.8 * iL, y - 0.75 * iL, x + 1, y - 0.15 * iL); g.stroke(); };
+  const natural = (g, x, y) => { g.fillRect(x, y - 1.4 * iL, 2.4, 1.95 * iL); g.fillRect(x + 0.5 * iL, y - 0.5 * iL, 2.4, 1.95 * iL); g.fillRect(x, y - 0.55 * iL, 0.55 * iL, 0.3 * iL); g.fillRect(x, y + 0.25 * iL, 0.55 * iL, 0.3 * iL); };
+  const treble = (g, x, top) => { g.lineWidth = 0.22 * iL; g.beginPath(); g.moveTo(x + 0.9 * iL, top + 5.6 * iL); g.lineTo(x + 0.9 * iL, top - 1.4 * iL); g.bezierCurveTo(x + 2.2 * iL, top - 0.2 * iL, x - 0.4 * iL, top + 1.5 * iL, x, top + 2.8 * iL); g.bezierCurveTo(x + 0.4 * iL, top + 4.2 * iL, x + 2.2 * iL, top + 3.6 * iL, x + 1.9 * iL, top + 2.6 * iL); g.bezierCurveTo(x + 1.6 * iL, top + 1.8 * iL, x + 0.5 * iL, top + 2.2 * iL, x + 0.9 * iL, top + 3.0 * iL); g.stroke(); g.beginPath(); g.arc(x + 0.5 * iL, top + 5.4 * iL, 0.35 * iL, 0, Math.PI * 2); g.fill(); };
+  const bass = (g, x, top) => { const l4 = top + iL; g.beginPath(); g.arc(x + 0.4 * iL, l4, 0.38 * iL, 0, Math.PI * 2); g.fill(); g.lineWidth = 0.3 * iL; g.beginPath(); g.moveTo(x + 0.2 * iL, l4); g.bezierCurveTo(x + 0.1 * iL, top - 0.15 * iL, x + 1.7 * iL, top - 0.2 * iL, x + 1.75 * iL, l4 + 0.3 * iL); g.bezierCurveTo(x + 1.8 * iL, top + 2.2 * iL, x + 0.9 * iL, top + 2.8 * iL, x + 0.1 * iL, top + 3.1 * iL); g.stroke(); for (const dy of [-0.5, 0.5]) { g.beginPath(); g.arc(x + 2.25 * iL, l4 + dy * iL, 0.2 * iL, 0, Math.PI * 2); g.fill(); } };
+  const percClef = (g, x, mid) => { g.fillRect(x, mid - iL, 0.32 * iL, 2 * iL); g.fillRect(x + 0.65 * iL, mid - iL, 0.32 * iL, 2 * iL); };
+  const digits = (g, x, top, b, t) => { g.font = `bold ${2.25 * iL}px "Times New Roman", serif`; g.textBaseline = 'alphabetic'; g.fillText(String(b), x, top + 1.95 * iL); g.fillText(String(t), x, top + 3.95 * iL); };
+  const arc = (g, x0, y0, x1, y1, bulge, thick) => { const mx = (x0 + x1) / 2, my = (y0 + y1) / 2 + bulge; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(mx, my, x1, y1); g.quadraticCurveTo(mx, my + (bulge > 0 ? -2 * thick : 2 * thick), x0, y0); g.fill(); };
+  const quarterRest = (g, x, mid) => { g.lineWidth = 0.3 * iL; g.beginPath(); g.moveTo(x, mid - 1.4 * iL); g.lineTo(x + 0.6 * iL, mid - 0.5 * iL); g.lineTo(x, mid + 0.2 * iL); g.lineTo(x + 0.6 * iL, mid + 0.9 * iL); g.lineTo(x + 0.1 * iL, mid + 1.3 * iL); g.stroke(); };
+  const DUR = { w: 4, h: 2, hd: 3, q: 1, qd: 1.5, e: 0.5, t: 1 / 3 };
+
+  // engrave a system. spec.measures: { pre:[...], beats, voices:[[notes]], dyn:[[beat, word]], wedge:[from,to,type] , end }
+  const engrave = (P, top, left, right, spec) => {
+    const g = P.g, oneLine = !!spec.oneLine, mid = oneLine ? top + 2 * iL : top + 2 * iL;
+    let clef = spec.clef;
+    let x = left + 0.6 * iL;
+    if (clef === 'G2') { treble(g, x, top); x += 2.6 * iL; } else if (clef === 'F4') { bass(g, x, top); x += 2.9 * iL; } else { percClef(g, x + 0.3 * iL, mid); x += 2 * iL; }
+    if (spec.sharps) spec.sharps.forEach(p => { sharp(g, x, yOf(top, p)); x += 1.1 * iL; });
+    if (spec.flats) spec.flats.forEach(p => { flat(g, x, yOf(top, p)); x += 1.0 * iL; });
+    x += 0.4 * iL;
+    if (spec.time) { digits(g, x, top, spec.time[0], spec.time[1]); x += 1.9 * iL; }
+    const totalBeats = spec.measures.reduce((a, m) => a + m.beats, 0);
+    const preW = spec.measures.reduce((a, m) => a + (m.preW || 0), 0);
+    const beatW = (right - x - spec.measures.length * 2.7 * iL - preW) / totalBeats;
+    const ties = [], slurs = {};
+    spec.measures.forEach((M, mi) => {
+      let mx = x + 0.4 * iL;
+      for (const pre of M.pre || []) {
+        if (pre.naturals) { pre.naturals.forEach(p => { natural(g, mx, yOf(top, p)); mx += 1.0 * iL; }); }
+        if (pre.flats) { pre.flats.forEach(p => { flat(g, mx, yOf(top, p)); mx += 1.0 * iL; }); mx += 0.3 * iL; }
+        if (pre.time) { digits(g, mx, top, pre.time[0], pre.time[1]); mx += 2.0 * iL; }
+        if (pre.clef === 'F4') { bass(g, mx, top); clef = 'F4'; mx += 3.0 * iL; }
       }
-      // barline
-      const bx = x + (mi + 1) * mw;
-      if (si === 1 && mi === measures.length - 1) { g.fillRect(bx - 0.9 * iL, top, 2, 4 * iL); g.fillRect(bx - 0.5 * iL, top, 0.5 * iL, 4 * iL); }
-      else g.fillRect(bx - 1, top, 2, 4 * iL);
+      const content0 = mx + 2.1 * iL;
+      const twoV = M.voices.length > 1;
+      M.voices.forEach((notes, vi) => {
+        let onset = 0; const placed = [];
+        notes.forEach(n => {
+          const nx = content0 + onset * beatW;
+          const d = n.tup ? 1 / 3 : DUR[n.d];
+          if (n.rest) {
+            if (n.rest === 'q') quarterRest(g, nx, mid + (twoV ? (vi ? 1.2 : -1.2) * iL : 0));
+            if (n.rest === 'h') g.fillRect(nx - 0.6 * iL, top + 1.5 * iL, 1.2 * iL, 0.5 * iL);
+            onset += DUR[n.rest]; return;
+          }
+          const y = oneLine ? mid : yOf(top, n.pos);
+          const up = twoV ? vi === 0 : (oneLine ? true : (n.up != null ? n.up : n.pos < 4));
+          if (n.grace != null) {
+            const gx = nx - 1.6 * iL, gy = yOf(top, n.grace);
+            head(g, gx, gy, 'q', 0.62); g.fillRect(gx + 0.36 * iL, gy - 2.4 * iL, 1.8, 2.4 * iL);
+            g.lineWidth = 0.18 * iL; g.beginPath(); g.moveTo(gx + 0.4 * iL, gy - 2.4 * iL); g.quadraticCurveTo(gx + 1.0 * iL, gy - 1.7 * iL, gx + 0.8 * iL, gy - 1.0 * iL); g.stroke();
+            g.lineWidth = 1.6; g.beginPath(); g.moveTo(gx - 0.1 * iL, gy - 1.2 * iL); g.lineTo(gx + 0.9 * iL, gy - 2.0 * iL); g.stroke();
+          }
+          if (n.acc === 'sharp') sharp(g, nx - 1.7 * iL, y); if (n.acc === 'flat') flat(g, nx - 1.5 * iL, y); if (n.acc === 'natural') natural(g, nx - 1.5 * iL, y);
+          head(g, nx, y, n.d === 'w' ? 'w' : (n.d === 'h' || n.d === 'hd') ? 'h' : 'q');
+          if (n.d === 'hd' || n.d === 'qd') { g.beginPath(); g.arc(nx + 1.3 * iL, (n.pos % 2 === 0 && !oneLine) ? y - 0.5 * iL : y - (oneLine ? 0.5 * iL : 0), 0.2 * iL, 0, Math.PI * 2); g.fill(); }
+          if (!oneLine && n.pos <= -2) for (let lp = -2; lp >= n.pos; lp -= 2) g.fillRect(nx - 1.0 * iL, yOf(top, lp) - 1.2, 2 * iL, 2.4);
+          if (!oneLine && n.pos >= 10) for (let lp = 10; lp <= n.pos; lp += 2) g.fillRect(nx - 1.0 * iL, yOf(top, lp) - 1.2, 2 * iL, 2.4);
+          const sx = up ? nx + 0.6 * iL : nx - 0.6 * iL;
+          const pl = { nx, y, sx, up, d: n.d, tup: n.tup, onset, ey: up ? y - 3.5 * iL : y + 3.5 * iL };
+          if (n.d !== 'w' && n.d !== 'e') g.fillRect(sx - 1.2, Math.min(y, pl.ey), 2.4, Math.abs(pl.ey - y));
+          placed.push(pl);
+          if (n.tie) ties.push({ from: pl, voice: vi, mi });
+          if (n.slur === 'start') slurs.start = pl; if (n.slur === 'stop' && slurs.start) { const a = slurs.start; arc(g, a.nx, a.y + (a.up ? 1.0 : -1.0) * iL, pl.nx, pl.y + (a.up ? 1.0 : -1.0) * iL, (a.up ? 1.6 : -1.6) * iL, 0.22 * iL); slurs.start = null; }
+          if (ties.length && ties[ties.length - 1].pending && ties[ties.length - 1].voice === vi) { const t = ties.pop(); const a = t.from; arc(g, a.nx + 0.8 * iL, a.y + 0.55 * iL, pl.nx - 0.8 * iL, pl.y + 0.55 * iL, 0.7 * iL, 0.2 * iL); }
+          if (n.tie) ties[ties.length - 1].pending = true;
+          onset += d;
+        });
+        // beams: eighths grouped by tuplet id or by beat
+        const eighths = placed.filter(p => p.d === 'e');
+        const groups = [];
+        eighths.forEach(p => { const key = p.tup ? 't' + p.tup : 'b' + Math.floor(p.onset + 1e-6); const gp = groups.find(G => G.key === key); if (gp) gp.items.push(p); else groups.push({ key, items: [p] }); });
+        groups.forEach(G => {
+          const its = G.items, up = twoV ? vi === 0 : (its.reduce((a, p) => a + (p.up ? 1 : -1), 0) >= 0);
+          if (its.length === 1) { const a = its[0]; g.fillRect(a.sx - 1.2, Math.min(a.y, a.ey), 2.4, Math.abs(a.ey - a.y)); g.lineWidth = 0.3 * iL; g.beginPath(); g.moveTo(a.sx, a.ey); g.quadraticCurveTo(a.sx + 1.1 * iL, a.ey + (a.up ? 1.2 : -1.2) * iL, a.sx + 0.7 * iL, a.ey + (a.up ? 2.6 : -2.6) * iL); g.stroke(); return; }
+          its.forEach(p => { p.sx = up ? p.nx + 0.6 * iL : p.nx - 0.6 * iL; });
+          const ey = up ? Math.min(...its.map(p => p.y)) - 3.5 * iL : Math.max(...its.map(p => p.y)) + 3.5 * iL;
+          its.forEach(p => g.fillRect(p.sx - 1.2, Math.min(p.y, ey), 2.4, Math.abs(ey - p.y)));
+          const a = its[0], b = its[its.length - 1];
+          g.fillRect(a.sx - 1.2, up ? ey : ey - 0.5 * iL, b.sx - a.sx + 2.4, 0.5 * iL);
+          if (a.tup) { g.font = `italic bold ${1.6 * iL}px Georgia, serif`; g.textAlign = 'center'; g.fillText('3', (a.sx + b.sx) / 2, up ? ey - 0.5 * iL : ey + 1.7 * iL); g.textAlign = 'left'; }
+        });
+      });
+      for (const [beat, word] of M.dyn || []) { g.font = `italic bold ${1.5 * iL}px Georgia, serif`; g.fillText(word, content0 + beat * beatW - 0.5 * iL, top + 8.6 * iL); }
+      if (M.wedge) { const [b0, b1, type] = M.wedge; const xa = content0 + b0 * beatW, xb = content0 + b1 * beatW, yy = top + 6.6 * iL; g.lineWidth = 1.6; g.beginPath(); if (type === 'cresc') { g.moveTo(xb, yy - 0.5 * iL); g.lineTo(xa, yy); g.lineTo(xb, yy + 0.5 * iL); } else { g.moveTo(xa, yy - 0.5 * iL); g.lineTo(xb, yy); g.lineTo(xa, yy + 0.5 * iL); } g.stroke(); }
+      x = content0 + M.beats * beatW + 0.4 * iL;
+      if (M.end === 'final') { g.fillRect(x - 0.9 * iL, oneLine ? mid - iL : top, 2, oneLine ? 2 * iL : 4 * iL); g.fillRect(x - 0.5 * iL, oneLine ? mid - iL : top, 0.5 * iL, oneLine ? 2 * iL : 4 * iL); }
+      else if (M.end === 'double') { g.fillRect(x - 0.5 * iL, top, 2, 4 * iL); g.fillRect(x - 1, top, 2, 4 * iL); }
+      else g.fillRect(x - 1, oneLine ? mid - iL : top, 2, oneLine ? 2 * iL : 4 * iL);
     });
-    // staff lines on top (like engraved output)
-    for (let l = 0; l < 5; l++) g.fillRect(left, top + l * iL - 1, (si === 1 ? x + measures.length * (right - x - iL) / measures.length : x + measures.length * mw) - left, 2.2);
-    g.fillRect(left, top, 2, 4 * iL);
+    if (oneLine) g.fillRect(left, mid - 1, x - left, 2.2);
+    else for (let l = 0; l < 5; l++) g.fillRect(left, top + l * iL - 1, x - left, 2.2);
+    g.fillRect(left, oneLine ? mid - iL : top, 2, oneLine ? 2 * iL : 4 * iL);
+  };
+
+  // Page 1: trumpet part exercising every feature
+  const P1 = pageOf(1900, 1250);
+  addText(P1, 'Sample March', 950, 90, 44, 'center');
+  addText(P1, 'Trumpet in B♭ 1', 90, 150, 24);
+  addText(P1, 'Arr. Demo', 1810, 150, 22, 'right');
+  addText(P1, '♩ = 112', 160, 205, 22);
+  engrave(P1, 300, 90, 1810, {
+    clef: 'G2', sharps: [8, 5], time: [4, 4], measures: [
+      { beats: 4, dyn: [[0, 'mf']], voices: [[{ pos: 4, d: 'q', slur: 'start' }, { pos: 5, d: 'q' }, { pos: 6, d: 'q' }, { pos: 7, d: 'q', slur: 'stop' }]] },
+      { beats: 4, voices: [[{ pos: 8, d: 'h', tie: true }, { pos: 8, d: 'q' }, { pos: 6, d: 'q' }]] },
+      { beats: 4, voices: [[{ pos: 2, d: 'e', tup: 1 }, { pos: 3, d: 'e', tup: 1 }, { pos: 4, d: 'e', tup: 1 }, { pos: 5, d: 'e', tup: 2 }, { pos: 6, d: 'e', tup: 2 }, { pos: 7, d: 'e', tup: 2 }, { pos: 6, d: 'q', acc: 'natural' }, { rest: 'q' }]] },
+      { beats: 4, voices: [[{ pos: -2, d: 'hd', grace: 1 }, { pos: 3, d: 'q', acc: 'flat' }]] }
+    ]
   });
-  return { canvas: c, text };
+  engrave(P1, 720, 90, 1810, {
+    clef: 'G2', sharps: [8, 5], measures: [
+      { beats: 4, dyn: [[2.2, 'p']], wedge: [1, 3.6, 'cresc'], end: 'double', voices: [[{ pos: 9, d: 'qd' }, { pos: 8, d: 'e' }, { pos: 7, d: 'q' }, { pos: 6, d: 'q' }]] },
+      { beats: 3, preW: 6 * iL, pre: [{ naturals: [8, 5], flats: [4] }, { time: [3, 4] }], voices: [[{ pos: 4, d: 'e' }, { pos: 6, d: 'e' }, { pos: 8, d: 'e' }, { pos: 10, d: 'e' }, { pos: 8, d: 'q' }]] },
+      { beats: 3, preW: 3 * iL, pre: [{ clef: 'F4' }], dyn: [[0, 'f']], voices: [[{ pos: 4, d: 'q' }, { pos: 6, d: 'q' }, { pos: 8, d: 'q' }]] },
+      { beats: 3, end: 'final', voices: [[{ pos: 7, d: 'q' }, { pos: 8, d: 'q' }, { pos: 9, d: 'q' }], [{ pos: 3, d: 'h' }, { pos: 2, d: 'q' }]] }
+    ]
+  });
+  // Page 2: one-line snare part
+  const P2 = pageOf(1900, 700);
+  addText(P2, 'Sample March', 950, 90, 44, 'center');
+  addText(P2, 'Snare Drum', 90, 150, 24);
+  engrave(P2, 280, 90, 1810, {
+    clef: 'perc', oneLine: true, time: [4, 4], measures: [
+      { beats: 4, voices: [[{ pos: 4, d: 'q' }, { pos: 4, d: 'q' }, { pos: 4, d: 'q' }, { pos: 4, d: 'q' }]] },
+      { beats: 4, voices: [[{ pos: 4, d: 'e' }, { pos: 4, d: 'e' }, { pos: 4, d: 'e' }, { pos: 4, d: 'e' }, { pos: 4, d: 'q' }, { pos: 4, d: 'q' }]] },
+      { beats: 4, end: 'final', voices: [[{ pos: 4, d: 'h' }, { rest: 'q' }, { pos: 4, d: 'q' }]] }
+    ]
+  });
+  return [P1, P2];
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -1914,18 +2589,16 @@ window.addEventListener('DOMContentLoaded', () => {
   dropZone.addEventListener('drop', e => { if (e.dataTransfer?.files) processDroppedFiles(e.dataTransfer.files); });
   const cards = document.getElementById('convertedCards');
   cards.addEventListener('click', onCardEvent); cards.addEventListener('change', onCardEvent);
-
   document.getElementById('btnTrySample').addEventListener('click', async () => {
-    setProgress('Recognizing sample page…', 0.3); await nextFrame();
+    setProgress('Recognizing sample pages…', 0.3); await nextFrame();
     try {
-      buildDigitTemplates();
-      const { canvas, text } = drawSamplePage();
-      const page = analyzeImageSource(canvas, canvas.width, canvas.height, text);
-      const doc = assembleDocument('Sample_March_Trumpet_1.png', [page]);
+      buildTemplates();
+      const pages = samplePages().map(P => analyzeImageSource(P.c, P.c.width, P.c.height, P.text, { scan: false }));
+      const doc = assembleDocument('Sample_March.png', pages);
       convertedItems.unshift(doc);
       window.__lastDoc = doc;
-    } catch (err) { console.error(err); convertedItems.unshift({ fileName: 'Sample page', error: err.message }); }
-    setProgress(null, null); renderConvertedList(); showToast('Sample page recognized. Open Preview to compare.');
+    } catch (err) { console.error(err); convertedItems.unshift({ fileName: 'Sample pages', error: err.message }); }
+    setProgress(null, null); renderConvertedList(); showToast('Sample recognized. Open Preview to compare.');
   });
   document.getElementById('btnDownloadAllZip').addEventListener('click', () => {
     const used = new Set();
