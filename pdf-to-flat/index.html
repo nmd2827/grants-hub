@@ -1,0 +1,1944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF to Flat.io Converter</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #0f172a; --bg2: #1e293b; --ink: #f8fafc; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: radial-gradient(circle at top, var(--bg2) 0%, var(--bg) 60%);
+      background-color: var(--bg);
+      color: var(--ink);
+    }
+    .drop-active { border-color: #3b82f6 !important; background-color: rgba(59,130,246,.12) !important; transform: scale(1.01); }
+    select, input[type=text], input[type=number] { background:#020617; border:1px solid #334155; border-radius:.6rem; padding:.3rem .5rem; color:#e2e8f0; font-size:.75rem; }
+    select:focus, input:focus { outline: 2px solid #3b82f6; outline-offset: 0; }
+    .tab-active { background:#1e293b; color:#fff; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <header class="border-b border-slate-800/80 bg-slate-900/70 backdrop-blur px-4 sm:px-6 py-4 flex flex-wrap gap-3 items-center justify-between">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg>
+      </div>
+      <div class="min-w-0">
+        <h1 class="text-lg font-bold text-white tracking-tight">PDF → Flat.io Converter</h1>
+        <p class="text-xs text-slate-400">In-browser optical music recognition: staves, clefs, key &amp; time signatures, rhythms, accidentals, beams, repeats and instrument parts.</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="btnTrySample" type="button" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition">Run on a sample page</button>
+      <button id="btnDownloadAllZip" type="button" class="hidden px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition">Download all (.zip)</button>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-8 space-y-6">
+
+    <label id="dropZone" for="fileInput" class="block border-2 border-dashed border-slate-700 hover:border-blue-500 bg-slate-900/60 rounded-3xl p-8 sm:p-10 text-center cursor-pointer transition-all shadow-xl">
+      <input id="fileInput" type="file" accept=".pdf,.png,.jpg,.jpeg" multiple class="hidden" />
+      <div class="w-16 h-16 rounded-2xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center mx-auto mb-4 text-blue-400">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+      </div>
+      <h2 class="text-xl font-bold text-white">Drop sheet music PDFs or images here</h2>
+      <p class="text-sm text-slate-400 mt-1.5">Single parts, part packets (one instrument per page range) or multi-staff scores. Everything runs locally in your browser.</p>
+      <div class="mt-4 inline-flex flex-wrap justify-center items-center gap-2 px-3 py-1 rounded-full bg-slate-800/90 border border-slate-700 text-xs text-slate-300">
+        <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+        <span>Best results: PDFs exported from notation software, or clean scans at 300 dpi</span>
+      </div>
+    </label>
+
+    <section id="progressSection" class="hidden bg-slate-900/80 border border-slate-800 rounded-2xl p-4">
+      <div class="flex justify-between text-xs text-slate-300 mb-2"><span id="progressText">Working…</span><span id="progressPct">0%</span></div>
+      <div class="h-2 rounded-full bg-slate-800 overflow-hidden"><div id="progressBar" class="h-full bg-blue-500 transition-all" style="width:0%"></div></div>
+    </section>
+
+    <section id="resultsSection" class="hidden space-y-3">
+      <div class="flex items-center justify-between px-1">
+        <h3 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Recognized scores</h3>
+        <button id="btnClearAll" type="button" class="text-xs text-slate-400 hover:text-rose-400 transition">Clear list</button>
+      </div>
+      <div id="convertedCards" class="space-y-4"></div>
+    </section>
+
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+      <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
+        <div class="text-blue-400 font-bold mb-1">1. Drop a file</div>
+        <p class="text-slate-400 leading-relaxed">Each page is rendered at a resolution matched to its staff size, deskewed, and staff lines are removed before symbols are read.</p>
+      </div>
+      <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
+        <div class="text-emerald-400 font-bold mb-1">2. Check what was read</div>
+        <p class="text-slate-400 leading-relaxed">Open <strong>Preview</strong> to see the engraved result and a detection overlay of each page. Fix the instrument, key or time signature if needed. Measures that don't add up are flagged.</p>
+      </div>
+      <div class="bg-slate-900/50 border border-slate-800 rounded-2xl p-4">
+        <div class="text-indigo-400 font-bold mb-1">3. Import into Flat.io</div>
+        <p class="text-slate-400 leading-relaxed">Download <strong>.musicxml</strong> or <strong>.mxl</strong> and import it in Flat.io (New score → Import). Instrument sounds, transpositions and tempo come along.</p>
+      </div>
+    </section>
+
+    <p class="text-[11px] text-slate-500 leading-relaxed px-1">
+      Known limits: tuplets, grace notes, ties, slurs, lyrics, dynamics, multiple voices on one staff, mid-system clef, key or time changes, and one-line percussion staves aren't read. Handwritten or very low-resolution scans won't recognize reliably.
+    </p>
+  </main>
+
+  <!-- Preview modal -->
+  <div id="previewModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 backdrop-blur-sm p-2 sm:p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-5xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[94vh]">
+      <div class="px-4 py-3 border-b border-slate-800 flex flex-wrap gap-2 items-center justify-between">
+        <div class="min-w-0">
+          <h4 id="previewTitle" class="text-sm font-bold text-white truncate">Score preview</h4>
+          <p id="previewSubtitle" class="text-xs text-slate-400"></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex rounded-lg border border-slate-700 overflow-hidden text-xs">
+            <button id="tabEngraved" type="button" class="px-3 py-1 text-slate-300 tab-active">Engraved</button>
+            <button id="tabOverlay" type="button" class="px-3 py-1 text-slate-300">Detection overlay</button>
+          </div>
+          <button id="btnPreviewPlay" type="button" class="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold">▶ Play</button>
+          <button id="btnClosePreview" type="button" class="text-slate-400 hover:text-white px-2 py-1 text-sm" aria-label="Close">✕</button>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto bg-white">
+        <div id="previewEngraved" class="p-3 text-slate-700 text-sm"></div>
+        <div id="previewOverlay" class="hidden p-3 space-y-3 bg-slate-100">
+          <div class="text-[11px] text-slate-600 flex flex-wrap gap-3">
+            <span><b style="color:#2563eb">■</b> staff</span><span><b style="color:#f97316">■</b> barline</span><span><b style="color:#16a34a">■</b> filled head</span><span><b style="color:#0891b2">■</b> hollow head</span><span><b style="color:#9333ea">■</b> rest</span><span><b style="color:#dc2626">■</b> accidental</span><span><b style="color:#64748b">■</b> clef/key/time</span><span><b style="color:#e11d48">▭</b> measure that doesn't fit the time signature</span>
+          </div>
+          <div id="overlayHost" class="space-y-3"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed bottom-4 right-4 z-50 hidden bg-slate-900 border border-emerald-500/40 text-white px-4 py-2.5 rounded-xl shadow-xl text-xs font-medium items-center gap-2">
+    <span class="w-2 h-2 rounded-full bg-emerald-400"></span><span id="toastText">Done</span>
+  </div>
+
+<script>
+'use strict';
+if (window.pdfjsLib) {
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+const OSMD_URL = 'https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@1.9.0/build/opensheetmusicdisplay.min.js';
+
+/* ====================================================================
+   Music constants
+   ==================================================================== */
+const DIV = 48; // divisions per quarter note
+const TYPE_DIV = { whole: 192, half: 96, quarter: 48, eighth: 24, '16th': 12, '32nd': 6 };
+const BEAM_TYPE = ['quarter', 'eighth', '16th', '32nd'];
+const DIA = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const SEMI = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const SHARP_ORDER = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+const FLAT_ORDER = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+// Diatonic index (octave*7 + step) of the bottom staff line for each clef
+const CLEF_BASE = { G2: 30, F4: 18, C3: 24, C4: 22, C1: 28, perc: 30 };
+const CLEF_XML = { G2: ['G', 2], F4: ['F', 4], C3: ['C', 3], C4: ['C', 4], C1: ['C', 1], perc: ['percussion', 2] };
+const CLEF_LABEL = { G2: 'Treble', F4: 'Bass', C3: 'Alto', C4: 'Tenor', C1: 'Soprano', perc: 'Percussion' };
+const MAJOR = { '-7': 'C♭', '-6': 'G♭', '-5': 'D♭', '-4': 'A♭', '-3': 'E♭', '-2': 'B♭', '-1': 'F', '0': 'C', '1': 'G', '2': 'D', '3': 'A', '4': 'E', '5': 'B', '6': 'F♯', '7': 'C♯' };
+const keyName = f => `${MAJOR[String(f)] || 'C'} major (${f === 0 ? 'no ♯/♭' : Math.abs(f) + (f > 0 ? '♯' : '♭')})`;
+
+/* Instruments: t = [diatonic, chromatic, octave-change] from written to sounding pitch */
+const INSTRUMENTS = [
+  { id: 'piccolo', name: 'Piccolo', abbr: 'Picc.', sound: 'wind.flutes.flute.piccolo', gm: 73, clef: 'G2', t: [0, 0, 1], fam: 'flute' },
+  { id: 'flute', name: 'Flute', abbr: 'Fl.', sound: 'wind.flutes.flute', gm: 74, clef: 'G2', t: [0, 0, 0], fam: 'flute' },
+  { id: 'alto_flute', name: 'Alto Flute', abbr: 'A. Fl.', sound: 'wind.flutes.flute.alto', gm: 74, clef: 'G2', t: [-4, -7, 0], fam: 'flute' },
+  { id: 'oboe', name: 'Oboe', abbr: 'Ob.', sound: 'wind.reed.oboe', gm: 69, clef: 'G2', t: [0, 0, 0], fam: 'reed' },
+  { id: 'english_horn', name: 'English Horn', abbr: 'E. Hn.', sound: 'wind.reed.english-horn', gm: 70, clef: 'G2', t: [-4, -7, 0], fam: 'reed' },
+  { id: 'bassoon', name: 'Bassoon', abbr: 'Bsn.', sound: 'wind.reed.bassoon', gm: 71, clef: 'F4', t: [0, 0, 0], fam: 'reed' },
+  { id: 'eb_clarinet', name: 'E♭ Clarinet', abbr: 'E♭ Cl.', sound: 'wind.reed.clarinet.eflat', gm: 72, clef: 'G2', t: [2, 3, 0], fam: 'reed' },
+  { id: 'clarinet', name: 'B♭ Clarinet', abbr: 'Cl.', sound: 'wind.reed.clarinet.bflat', gm: 72, clef: 'G2', t: [-1, -2, 0], fam: 'reed' },
+  { id: 'clarinet_a', name: 'Clarinet in A', abbr: 'Cl.', sound: 'wind.reed.clarinet.a', gm: 72, clef: 'G2', t: [-2, -3, 0], fam: 'reed' },
+  { id: 'alto_clarinet', name: 'E♭ Alto Clarinet', abbr: 'A. Cl.', sound: 'wind.reed.clarinet.alto', gm: 72, clef: 'G2', t: [-5, -9, 0], fam: 'reed' },
+  { id: 'bass_clarinet', name: 'B♭ Bass Clarinet', abbr: 'B. Cl.', sound: 'wind.reed.clarinet.bass', gm: 72, clef: 'G2', t: [-1, -2, -1], fam: 'reed' },
+  { id: 'soprano_sax', name: 'B♭ Soprano Saxophone', abbr: 'S. Sax.', sound: 'wind.reed.saxophone.soprano', gm: 65, clef: 'G2', t: [-1, -2, 0], fam: 'reed' },
+  { id: 'alto_sax', name: 'E♭ Alto Saxophone', abbr: 'A. Sax.', sound: 'wind.reed.saxophone.alto', gm: 66, clef: 'G2', t: [-5, -9, 0], fam: 'reed' },
+  { id: 'tenor_sax', name: 'B♭ Tenor Saxophone', abbr: 'T. Sax.', sound: 'wind.reed.saxophone.tenor', gm: 67, clef: 'G2', t: [-1, -2, -1], fam: 'reed' },
+  { id: 'bari_sax', name: 'E♭ Baritone Saxophone', abbr: 'Bari. Sax.', sound: 'wind.reed.saxophone.baritone', gm: 68, clef: 'G2', t: [-5, -9, -1], fam: 'reed' },
+  { id: 'trumpet', name: 'B♭ Trumpet', abbr: 'Tpt.', sound: 'brass.trumpet.bflat', gm: 57, clef: 'G2', t: [-1, -2, 0], fam: 'brass' },
+  { id: 'trumpet_c', name: 'Trumpet in C', abbr: 'C Tpt.', sound: 'brass.trumpet.c', gm: 57, clef: 'G2', t: [0, 0, 0], fam: 'brass' },
+  { id: 'cornet', name: 'B♭ Cornet', abbr: 'Cor.', sound: 'brass.cornet', gm: 57, clef: 'G2', t: [-1, -2, 0], fam: 'brass' },
+  { id: 'flugelhorn', name: 'B♭ Flugelhorn', abbr: 'Flgh.', sound: 'brass.flugelhorn', gm: 57, clef: 'G2', t: [-1, -2, 0], fam: 'brass' },
+  { id: 'horn', name: 'Horn in F', abbr: 'Hn.', sound: 'brass.french-horn', gm: 61, clef: 'G2', t: [-4, -7, 0], fam: 'brass' },
+  { id: 'mellophone', name: 'Mellophone in F', abbr: 'Mello.', sound: 'brass.mellophone', gm: 61, clef: 'G2', t: [-4, -7, 0], fam: 'brass' },
+  { id: 'trombone', name: 'Trombone', abbr: 'Tbn.', sound: 'brass.trombone.tenor', gm: 58, clef: 'F4', t: [0, 0, 0], fam: 'brass' },
+  { id: 'bass_trombone', name: 'Bass Trombone', abbr: 'B. Tbn.', sound: 'brass.trombone.bass', gm: 58, clef: 'F4', t: [0, 0, 0], fam: 'brass' },
+  { id: 'baritone_tc', name: 'Baritone T.C. (B♭)', abbr: 'Bar. T.C.', sound: 'brass.baritone-horn', gm: 59, clef: 'G2', t: [-1, -2, -1], fam: 'brass' },
+  { id: 'euphonium', name: 'Euphonium / Baritone B.C.', abbr: 'Euph.', sound: 'brass.euphonium', gm: 59, clef: 'F4', t: [0, 0, 0], fam: 'brass' },
+  { id: 'tuba', name: 'Tuba', abbr: 'Tba.', sound: 'brass.tuba', gm: 59, clef: 'F4', t: [0, 0, 0], fam: 'brass' },
+  { id: 'timpani', name: 'Timpani', abbr: 'Timp.', sound: 'drum.timpani', gm: 48, clef: 'F4', t: [0, 0, 0], fam: 'mallet' },
+  { id: 'glockenspiel', name: 'Glockenspiel / Bells', abbr: 'Glk.', sound: 'pitched-percussion.glockenspiel', gm: 10, clef: 'G2', t: [0, 0, 2], fam: 'mallet' },
+  { id: 'xylophone', name: 'Xylophone', abbr: 'Xyl.', sound: 'pitched-percussion.xylophone', gm: 14, clef: 'G2', t: [0, 0, 1], fam: 'mallet' },
+  { id: 'vibraphone', name: 'Vibraphone', abbr: 'Vib.', sound: 'pitched-percussion.vibraphone', gm: 12, clef: 'G2', t: [0, 0, 0], fam: 'mallet' },
+  { id: 'marimba', name: 'Marimba', abbr: 'Mar.', sound: 'pitched-percussion.marimba', gm: 13, clef: 'G2', t: [0, 0, 0], fam: 'mallet' },
+  { id: 'percussion', name: 'Percussion', abbr: 'Perc.', sound: 'drum.snare-drum', gm: 1, clef: 'perc', t: [0, 0, 0], fam: 'perc', perc: true },
+  { id: 'violin', name: 'Violin', abbr: 'Vln.', sound: 'strings.violin', gm: 41, clef: 'G2', t: [0, 0, 0], fam: 'strings' },
+  { id: 'viola', name: 'Viola', abbr: 'Vla.', sound: 'strings.viola', gm: 42, clef: 'C3', t: [0, 0, 0], fam: 'strings' },
+  { id: 'cello', name: 'Violoncello', abbr: 'Vc.', sound: 'strings.cello', gm: 43, clef: 'F4', t: [0, 0, 0], fam: 'strings' },
+  { id: 'contrabass', name: 'Contrabass', abbr: 'Cb.', sound: 'strings.contrabass', gm: 44, clef: 'F4', t: [0, 0, -1], fam: 'strings' },
+  { id: 'electric_bass', name: 'Electric Bass', abbr: 'E. Bass', sound: 'pluck.bass.electric', gm: 34, clef: 'F4', t: [0, 0, -1], fam: 'pluck' },
+  { id: 'guitar', name: 'Guitar', abbr: 'Gtr.', sound: 'pluck.guitar.acoustic', gm: 25, clef: 'G2', t: [0, 0, -1], fam: 'pluck' },
+  { id: 'harp', name: 'Harp', abbr: 'Hp.', sound: 'pluck.harp', gm: 47, clef: 'G2', clef2: 'F4', t: [0, 0, 0], fam: 'pluck', grand: true },
+  { id: 'piano', name: 'Piano', abbr: 'Pno.', sound: 'keyboard.piano.grand', gm: 1, clef: 'G2', clef2: 'F4', t: [0, 0, 0], fam: 'keys', grand: true },
+  { id: 'voice', name: 'Voice', abbr: 'Vo.', sound: 'voice.vocals', gm: 53, clef: 'G2', t: [0, 0, 0], fam: 'flute' },
+  { id: 'unknown', name: 'Part', abbr: 'Pt.', sound: 'keyboard.piano.grand', gm: 1, clef: 'G2', t: [0, 0, 0], fam: 'keys' }
+];
+const INST = Object.fromEntries(INSTRUMENTS.map(i => [i.id, i]));
+
+// Full names, checked in priority order (more specific first)
+const NAME_MATCHERS = [
+  [/\bpiccolo\b/, 'piccolo'], [/\balto\s+flutes?\b/, 'alto_flute'], [/\bflutes?\b/, 'flute'],
+  [/\benglish\s+horn\b|\bcor\s+anglais\b/, 'english_horn'], [/\boboes?\b/, 'oboe'], [/\bbassoons?\b/, 'bassoon'],
+  [/\bbass\s+clarinets?\b/, 'bass_clarinet'], [/\balto\s+clarinets?\b/, 'alto_clarinet'],
+  [/\beb\s+clarinets?\b|\bclarinets?\s+in\s+eb\b/, 'eb_clarinet'], [/\bclarinets?\s+in\s+a\b|\ba\s+clarinets?\b/, 'clarinet_a'],
+  [/\bclarinets?\b/, 'clarinet'], [/\bsoprano\s+sax/, 'soprano_sax'], [/\btenor\s+sax/, 'tenor_sax'],
+  [/\bbari(tone)?\s+sax/, 'bari_sax'], [/\balto\s+sax|\bsaxophones?\b|\bsax\b/, 'alto_sax'],
+  [/\bflugel/, 'flugelhorn'], [/\btrumpets?\s+in\s+c\b|\bc\s+trumpets?\b/, 'trumpet_c'], [/\bcornets?\b/, 'cornet'],
+  [/\btrumpets?\b/, 'trumpet'], [/\bmellophones?\b/, 'mellophone'], [/\bbass\s+trombones?\b/, 'bass_trombone'],
+  [/\btrombones?\b/, 'trombone'], [/\b(baritone|euphonium)\s*(t\.?\s*c\b\.?|treble)/, 'baritone_tc'],
+  [/\beuphoniums?\b|\bbaritones?\b/, 'euphonium'], [/\btubas?\b|\bsousaphones?\b/, 'tuba'],
+  [/\bhorns?\b/, 'horn'], [/\btimpani\b|\bkettle\s*drums?\b/, 'timpani'],
+  [/\bglockenspiel\b|\borchestra\s+bells\b|\bbells\b/, 'glockenspiel'], [/\bxylophone\b/, 'xylophone'],
+  [/\bvibraphone\b|\bvibes\b/, 'vibraphone'], [/\bmarimba\b|\bmallets?\b/, 'marimba'],
+  [/\bsnare\b|\bdrums?\b|\bpercussion\b|\bcymbals?\b|\bdrum\s*set\b|\bdrumset\b/, 'percussion'],
+  [/\bviolas?\b/, 'viola'], [/\bviolins?\b/, 'violin'], [/\b(violon)?cellos?\b/, 'cello'],
+  [/\bcontrabass\b|\bdouble\s+bass\b|\bstring\s+bass\b|\bupright\s+bass\b/, 'contrabass'],
+  [/\belectric\s+bass\b|\bbass\s+guitar\b/, 'electric_bass'], [/\bguitars?\b/, 'guitar'], [/\bharp\b/, 'harp'],
+  [/\bpiano(forte)?\b|\bkeyboards?\b/, 'piano'], [/\b(voice|vocals?|soprano|mezzo|choir)\b/, 'voice']
+];
+// Abbreviations, only used for staff labels at the left of a system
+const ABBR_MATCHERS = [
+  [/^picc?\b/, 'piccolo'], [/^a\.?\s*fl/, 'alto_flute'], [/^fl/, 'flute'], [/^e\.?\s*h(n|orn)?\b|^c\.?\s*a\.(\s|$)/, 'english_horn'],
+  [/^ob/, 'oboe'], [/^bsn|^bn\b|^fg/, 'bassoon'], [/^b\.?\s*cl/, 'bass_clarinet'], [/^a\.?\s*cl/, 'alto_clarinet'],
+  [/^eb\s*cl/, 'eb_clarinet'], [/^(bb\s*)?cl/, 'clarinet'], [/^s\.?\s*sa?x/, 'soprano_sax'], [/^a\.?\s*sa?x/, 'alto_sax'],
+  [/^t\.?\s*sa?x/, 'tenor_sax'], [/^(b|bari|bar)\.?\s*sa?x/, 'bari_sax'], [/^flg|^flug/, 'flugelhorn'],
+  [/^(bb\s*)?(tpts?|tp|tr|trp)(\.|\s|\d|$)/, 'trumpet'], [/^(cor|crt|cnt)(\.|\s|\d|$)/, 'cornet'], [/^mel/, 'mellophone'],
+  [/^(f\s*)?hns?(\.|\s|\d|$)|^hrn/, 'horn'], [/^b\.?\s*tbn|^b\.?\s*trb/, 'bass_trombone'], [/^tbns?|^trb|^tb(\.|\s|\d|$)/, 'trombone'],
+  [/^(bar|euph)\.?\s*t\.?\s*c/, 'baritone_tc'], [/^euph|^bar(i)?(\.|\s|$)/, 'euphonium'], [/^tba|^tu(\.|\s|$)/, 'tuba'],
+  [/^timp|^tmp/, 'timpani'], [/^glk|^glock|^bells/, 'glockenspiel'], [/^xyl/, 'xylophone'], [/^vib/, 'vibraphone'],
+  [/^mar|^mrb|^mlt/, 'marimba'], [/^perc|^s\.?\s*d(\.|\s|$)|^sn(\.|\s|$)|^dr(\.|\s|$)|^b\.?\s*d(\.|\s|$)|^cym/, 'percussion'],
+  [/^vla|^va(\.|\s|$)/, 'viola'], [/^vln|^vn(\.|\s|\d|$)|^vl(\.|\s|\d|$)|^vi(\.|\s|\d|$)/, 'violin'], [/^vc|^vlc/, 'cello'],
+  [/^cb(\.|\s|$)|^d\.?\s*b(\.|\s|$)|^kb/, 'contrabass'], [/^e\.?\s*b(ass|\.)|^b\.?\s*gtr/, 'electric_bass'],
+  [/^gtr|^gt(\.|\s|$)|^guit/, 'guitar'], [/^hp(\.|\s|$)|^hrp/, 'harp'], [/^pno|^pf(\.|\s|$)|^pia/, 'piano']
+];
+
+function normText(s) {
+  return String(s || '').toLowerCase()
+    .replace(/♭|\u{E260}/gu, 'b').replace(/♯|\u{E262}/gu, '#')
+    .replace(/\b([a-g])[\s-]?flat\b/g, '$1b').replace(/\b([a-g])[\s-]?sharp\b/g, '$1#')
+    .replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function chairNumber(s) {
+  const m = normText(s).match(/(?:^|\s|\.)(\d)(?:st|nd|rd|th)?(?:\s|$|\.)|\b(i{1,3}|iv)\s*$/);
+  if (!m) return null;
+  if (m[1]) return m[1];
+  return { i: '1', ii: '2', iii: '3', iv: '4' }[m[2]] || null;
+}
+function matchInstrument(text, allowAbbr) {
+  const n = normText(text);
+  if (!n) return null;
+  for (const [rx, id] of NAME_MATCHERS) if (rx.test(n)) return { instId: id, num: chairNumber(n), raw: text, trans: customTransposition(id, n) };
+  if (allowAbbr && n.length <= 18) {
+    for (const [rx, id] of ABBR_MATCHERS) if (rx.test(n)) return { instId: id, num: chairNumber(n), raw: text, trans: customTransposition(id, n) };
+  }
+  return null;
+}
+// "Horn in E♭", "Trumpet in D" … → transposition override
+function customTransposition(id, n) {
+  const inst = INST[id];
+  if (!inst || inst.perc) return null;
+  const m = n.match(/\bin\s+([a-g])(b|#)?(?=\s|$|\d|\))/);
+  if (!m) return null;
+  const letter = m[1].toUpperCase();
+  let pc = (SEMI[letter] + (m[2] === 'b' ? -1 : m[2] === '#' ? 1 : 0) + 12) % 12;
+  const idx = DIA.indexOf(letter);
+  if (pc === 0 && letter === 'C') return [0, 0, inst.t[2]];
+  const upCapable = ['trumpet', 'trumpet_c', 'cornet', 'clarinet', 'eb_clarinet', 'clarinet_a'].includes(id);
+  const up = upCapable && pc > 0 && pc <= 6;
+  const t = up ? [idx, pc, inst.t[2]] : [idx - 7, pc - 12, inst.t[2]];
+  if (t[0] === inst.t[0] && t[1] === inst.t[1]) return null;
+  return t;
+}
+
+/* ====================================================================
+   Image processing primitives
+   ==================================================================== */
+function grayFromCanvas(canvas) {
+  const W = canvas.width, H = canvas.height;
+  const d = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, W, H).data;
+  const g = new Uint8Array(W * H);
+  for (let i = 0, j = 0; i < g.length; i++, j += 4) {
+    const a = d[j + 3];
+    const v = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
+    g[i] = a === 255 ? v : 255 - (((255 - v) * a) / 255 | 0);
+  }
+  return g;
+}
+function otsu(g) {
+  const hist = new Float64Array(256);
+  for (let i = 0; i < g.length; i++) hist[g[i]]++;
+  const total = g.length; let sum = 0;
+  for (let i = 0; i < 256; i++) sum += i * hist[i];
+  let sumB = 0, wB = 0, best = 0, thr = 128;
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t]; if (!wB) continue;
+    const wF = total - wB; if (!wF) break;
+    sumB += t * hist[t];
+    const mB = sumB / wB, mF = (sum - sumB) / wF;
+    const v = wB * wF * (mB - mF) * (mB - mF);
+    if (v > best) { best = v; thr = t; }
+  }
+  return Math.max(80, Math.min(210, thr));
+}
+function binarize(g, thr) { const b = new Uint8Array(g.length); for (let i = 0; i < g.length; i++) b[i] = g[i] <= thr ? 1 : 0; return b; }
+
+function hRuns(bin, W, H, out) {
+  const r = out || new Uint16Array(W * H);
+  for (let y = 0; y < H; y++) {
+    const o = y * W; let x = 0;
+    while (x < W) {
+      if (!bin[o + x]) { r[o + x] = 0; x++; continue; }
+      const s = x; while (x < W && bin[o + x]) x++;
+      const L = Math.min(65535, x - s);
+      for (let k = s; k < x; k++) r[o + k] = L;
+    }
+  }
+  return r;
+}
+function vRuns(bin, W, H, out) {
+  const r = out || new Uint16Array(W * H);
+  for (let x = 0; x < W; x++) {
+    let y = 0;
+    while (y < H) {
+      if (!bin[y * W + x]) { r[y * W + x] = 0; y++; continue; }
+      const s = y; while (y < H && bin[y * W + x]) y++;
+      const L = Math.min(65535, y - s);
+      for (let k = s; k < y; k++) r[k * W + x] = L;
+    }
+  }
+  return r;
+}
+
+// Interline (line-to-line distance) and staff line thickness from vertical run statistics
+function estimateSpacing(bin, W, H) {
+  const blackH = new Float64Array(64), pairH = new Float64Array(256);
+  const step = Math.max(1, Math.floor(W / 400));
+  for (let x = 0; x < W; x += step) {
+    let y = 0; let lastBlack = -1;
+    while (y < H) {
+      const s = y, v = bin[y * W + x];
+      while (y < H && bin[y * W + x] === v) y++;
+      const L = y - s;
+      if (v) { lastBlack = L; if (L < 64) blackH[L]++; }
+      else if (lastBlack > 0) { const p = lastBlack + L; if (p < 256) pairH[p]++; lastBlack = -1; }
+    }
+  }
+  let thick = 1; for (let i = 1; i < 64; i++) if (blackH[i] > blackH[thick]) thick = i;
+  let iL = 0, bestV = 0;
+  for (let i = 5; i < 256; i++) { const v = pairH[i] + 0.5 * (pairH[i - 1] + (pairH[i + 1] || 0)); if (v > bestV) { bestV = v; iL = i; } }
+  return { iL, thick };
+}
+
+function estimateSkew(bin, W, H) {
+  let count = 0; for (let i = 0; i < bin.length; i++) count += bin[i];
+  if (count < 2000) return 0;
+  const stride = Math.max(1, Math.floor(count / 150000));
+  const xs = new Int32Array(Math.ceil(count / stride) + 1), ys = new Int32Array(xs.length);
+  let n = 0, k = 0;
+  for (let i = 0; i < bin.length; i++) if (bin[i] && (k++ % stride === 0)) { xs[n] = i % W; ys[n] = (i / W) | 0; n++; }
+  const cx = W / 2, margin = Math.ceil(W * 0.06) + 2, proj = new Float64Array(H + 2 * margin);
+  const scoreAt = deg => {
+    const t = Math.tan(deg * Math.PI / 180); proj.fill(0);
+    for (let j = 0; j < n; j++) { const yy = Math.round(ys[j] - (xs[j] - cx) * t) + margin; if (yy >= 0 && yy < proj.length) proj[yy]++; }
+    let s = 0; for (let j = 0; j < proj.length; j++) s += proj[j] * proj[j]; return s;
+  };
+  let best = 0, bestS = scoreAt(0);
+  for (let a = -3; a <= 3.0001; a += 0.25) { const s = scoreAt(a); if (s > bestS) { bestS = s; best = a; } }
+  let fine = best;
+  for (let a = best - 0.25; a <= best + 0.25; a += 0.05) { const s = scoreAt(a); if (s > bestS) { bestS = s; fine = a; } }
+  return Math.abs(fine) < 0.1 ? 0 : fine;
+}
+function rotateCanvas(src, deg) {
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.translate(c.width / 2, c.height / 2); ctx.rotate(-deg * Math.PI / 180); ctx.drawImage(src, -src.width / 2, -src.height / 2);
+  return c;
+}
+
+// 8- or 4-connected components with bounding boxes
+function labelCC(img, W, H, conn4) {
+  const lab = new Int32Array(W * H);
+  let stack = new Int32Array(1 << 16);
+  const comps = [null]; let n = 0;
+  for (let i = 0; i < W * H; i++) {
+    if (!img[i] || lab[i]) continue;
+    n++; let sp = 0; stack[sp++] = i; lab[i] = n;
+    let minX = W, minY = H, maxX = 0, maxY = 0, area = 0, touches = false;
+    while (sp) {
+      const p = stack[--sp]; const x = p % W, y = (p - x) / W;
+      area++; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+      if (x === 0 || y === 0 || x === W - 1 || y === H - 1) touches = true;
+      for (let dy = -1; dy <= 1; dy++) {
+        const ny = y + dy; if (ny < 0 || ny >= H) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dy) continue; if (conn4 && dx && dy) continue;
+          const nx = x + dx; if (nx < 0 || nx >= W) continue;
+          const q = ny * W + nx;
+          if (img[q] && !lab[q]) {
+            lab[q] = n;
+            if (sp >= stack.length) { const ns = new Int32Array(stack.length * 2); ns.set(stack); stack = ns; }
+            stack[sp++] = q;
+          }
+        }
+      }
+    }
+    comps.push({ id: n, minX, minY, maxX, maxY, area, w: maxX - minX + 1, h: maxY - minY + 1, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2, touches });
+  }
+  return { lab, comps };
+}
+
+const median = a => { const s = [...a].sort((x, y) => x - y); return s.length ? s[s.length >> 1] : 0; };
+const mode = a => { const m = new Map(); let best = null, bc = 0; for (const v of a) { const c = (m.get(v) || 0) + 1; m.set(v, c); if (c > bc) { bc = c; best = v; } } return best; };
+
+/* ====================================================================
+   Digit classifier (time signatures, multi-measure rest counts)
+   ==================================================================== */
+const GW = 10, GH = 14;
+let DIGIT_TEMPLATES = null;
+function gridVector(get, x0, y0, w, h) {
+  const v = new Float32Array(GW * GH);
+  for (let gy = 0; gy < GH; gy++) for (let gx = 0; gx < GW; gx++) {
+    const ax = x0 + Math.floor(gx * w / GW), bx = x0 + Math.max(Math.floor(gx * w / GW) + 1, Math.floor((gx + 1) * w / GW));
+    const ay = y0 + Math.floor(gy * h / GH), by = y0 + Math.max(Math.floor(gy * h / GH) + 1, Math.floor((gy + 1) * h / GH));
+    let s = 0, c = 0;
+    for (let y = ay; y < by; y++) for (let x = ax; x < bx; x++) { s += get(x, y); c++; }
+    v[gy * GW + gx] = c ? s / c : 0;
+  }
+  return v;
+}
+function buildDigitTemplates() {
+  if (DIGIT_TEMPLATES) return DIGIT_TEMPLATES;
+  DIGIT_TEMPLATES = [];
+  const fonts = ['bold 72px "Times New Roman", Times, serif', 'bold 72px Georgia, serif', '900 72px serif', 'bold 72px "Century Schoolbook", "New Century Schoolbook", serif', 'bold 72px Arial, Helvetica, sans-serif'];
+  const c = document.createElement('canvas'); c.width = 110; c.height = 110;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  for (const f of fonts) for (let d = 0; d <= 9; d++) {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, 110, 110); ctx.fillStyle = '#000'; ctx.font = f; ctx.textBaseline = 'middle'; ctx.fillText(String(d), 20, 55);
+    const data = ctx.getImageData(0, 0, 110, 110).data;
+    let minX = 110, minY = 110, maxX = -1, maxY = -1;
+    for (let y = 0; y < 110; y++) for (let x = 0; x < 110; x++) if (data[(y * 110 + x) * 4] < 128) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
+    if (maxX < 0) continue;
+    const w = maxX - minX + 1, h = maxY - minY + 1;
+    const v = gridVector((x, y) => data[(y * 110 + x) * 4] < 128 ? 1 : 0, minX, minY, w, h);
+    DIGIT_TEMPLATES.push({ d, v, ar: w / h });
+  }
+  return DIGIT_TEMPLATES;
+}
+function classifyDigitComp(comp, lab, W) {
+  const T = buildDigitTemplates();
+  const v = gridVector((x, y) => lab[y * W + x] === comp.id ? 1 : 0, comp.minX, comp.minY, comp.w, comp.h);
+  const ar = comp.w / comp.h;
+  let best = null, bs = Infinity;
+  for (const t of T) {
+    let s = 0; for (let i = 0; i < v.length; i++) { const d = v[i] - t.v[i]; s += d * d; }
+    s = s / v.length + 0.6 * Math.abs(ar - t.ar);
+    if (s < bs) { bs = s; best = t.d; }
+  }
+  return { d: best, score: bs };
+}
+function readNumberFromComps(list, lab, W) {
+  if (!list.length) return null;
+  const sorted = [...list].sort((a, b) => a.minX - b.minX);
+  let s = '', worst = 0;
+  for (const c of sorted) { const r = classifyDigitComp(c, lab, W); s += r.d; worst = Math.max(worst, r.score); }
+  return worst < 0.2 ? parseInt(s, 10) : null;
+}
+// Digits in the PDF text layer (ASCII or SMuFL time-signature glyphs U+E080–E089)
+function textNumberInRect(items, r) {
+  if (!items || !items.length) return null;
+  const hits = items.filter(it => {
+    const cx = it.x + it.w / 2;
+    const pua = [...it.str].some(ch => { const c = ch.codePointAt(0); return c >= 0xE080 && c <= 0xE089; });
+    const cy = pua ? it.baseline : it.baseline - it.h * 0.35;
+    return cx >= r.x0 && cx <= r.x1 && cy >= r.y0 && cy <= r.y1;
+  }).sort((a, b) => a.x - b.x);
+  let s = '';
+  for (const it of hits) for (const ch of it.str) {
+    const c = ch.codePointAt(0);
+    if (c >= 0x30 && c <= 0x39) s += ch; else if (c >= 0xE080 && c <= 0xE089) s += String(c - 0xE080);
+  }
+  return s ? parseInt(s, 10) : null;
+}
+
+/* ====================================================================
+   Page analysis (OMR)
+   ==================================================================== */
+function findStaves(bin, hr, vr, W, H, sp) {
+  const minRun = Math.max(24, Math.round(sp.iL * 4));
+  const maxT = Math.max(2, Math.round(sp.thick * 1.8) + 1);
+  const score = new Int32Array(H), mnx = new Int32Array(H), mxx = new Int32Array(H);
+  let mx = 0;
+  for (let y = 0; y < H; y++) {
+    const o = y * W; let c = 0, a = W, b = -1;
+    for (let x = 0; x < W; x++) { const i = o + x; if (bin[i] && hr[i] >= minRun && vr[i] <= maxT) { c++; if (x < a) a = x; b = x; } }
+    score[y] = c; mnx[y] = a; mxx[y] = b; if (c > mx) mx = c;
+  }
+  if (mx < minRun) return [];
+  const thr = Math.max(minRun, mx * 0.15);
+  const lines = [];
+  for (let y = 0; y < H;) {
+    if (score[y] < thr) { y++; continue; }
+    let ws = 0, ys = 0, best = y;
+    while (y < H && score[y] >= thr) { ws += score[y]; ys += score[y] * y; if (score[y] > score[best]) best = y; y++; }
+    lines.push({ y: ys / ws, x0: mnx[best], x1: mxx[best] });
+  }
+  const staves = [];
+  for (let i = 0; i + 4 < lines.length;) {
+    const g = lines.slice(i, i + 5);
+    const gaps = [1, 2, 3, 4].map(k => g[k].y - g[k - 1].y);
+    const avg = (g[4].y - g[0].y) / 4;
+    const overlap = Math.min(...g.map(l => l.x1)) - Math.max(...g.map(l => l.x0));
+    if (Math.max(...gaps) / Math.min(...gaps) < 1.3 && avg > sp.iL * 0.5 && avg < sp.iL * 1.8 && overlap > avg * 6) {
+      staves.push({ lines: g.map(l => l.y), iL: avg, left: median(g.map(l => l.x0)), right: median(g.map(l => l.x1)), top: g[0].y, bottom: g[4].y, mid: g[2].y });
+      i += 5;
+    } else i++;
+  }
+  return staves;
+}
+
+function removeStaffLines(bin, clean, W, H, staves, maxT) {
+  for (const s of staves) {
+    const x0 = Math.max(0, Math.floor(s.left - s.iL)), x1 = Math.min(W - 1, Math.ceil(s.right + s.iL));
+    for (const ly of s.lines) {
+      const yl = Math.round(ly);
+      for (let x = x0; x <= x1; x++) {
+        let yc = -1;
+        for (const d of [0, -1, 1, -2, 2, -3, 3]) { const yy = yl + d; if (yy >= 0 && yy < H && bin[yy * W + x]) { yc = yy; break; } }
+        if (yc < 0) continue;
+        let t = yc; while (t > 0 && bin[(t - 1) * W + x]) t--;
+        let b = yc; while (b < H - 1 && bin[(b + 1) * W + x]) b++;
+        if (b - t + 1 <= maxT) for (let yy = t; yy <= b; yy++) clean[yy * W + x] = 0;
+      }
+    }
+  }
+}
+
+function groupSystems(staves, bin, W) {
+  if (!staves.length) return [];
+  const systems = []; let cur = [0];
+  for (let i = 1; i < staves.length; i++) {
+    const a = staves[i - 1], b = staves[i], iL = (a.iL + b.iL) / 2;
+    let connected = false;
+    const xs = Math.max(0, Math.round(Math.min(a.left, b.left) - 2.5 * iL)), xe = Math.min(W - 1, Math.round(Math.max(a.left, b.left) + 1.2 * iL));
+    const y0 = Math.round(a.bottom), y1 = Math.round(b.top);
+    for (let x = xs; x <= xe && !connected; x++) {
+      let miss = 0;
+      for (let y = y0; y <= y1; y++) if (!bin[y * W + x] && !bin[y * W + x + 1]) { if (++miss > 2) break; }
+      if (miss <= 2) connected = true;
+    }
+    if (connected) cur.push(i); else { systems.push(cur); cur = [i]; }
+  }
+  systems.push(cur);
+  return systems;
+}
+
+// Vertical strokes of a component (used for accidentals and rests)
+function strokesOf(c, lab, W, minLen) {
+  const cols = [];
+  for (let x = c.minX; x <= c.maxX; x++) {
+    let best = 0, bt = 0, run = 0, st = 0;
+    for (let y = c.minY; y <= c.maxY; y++) {
+      if (lab[y * W + x] === c.id) { if (!run) st = y; run++; if (run > best) { best = run; bt = st; } } else run = 0;
+    }
+    cols.push({ x, len: best, top: bt, bot: bt + best - 1 });
+  }
+  const strokes = []; let curS = null;
+  for (const col of cols) {
+    if (col.len >= minLen) { if (curS && col.x - curS.lastX <= 1) { curS.lastX = col.x; if (col.len > curS.len) Object.assign(curS, { len: col.len, top: col.top, bot: col.bot, x: col.x }); } else { curS = { ...col, lastX: col.x }; strokes.push(curS); } }
+    else curS = null;
+  }
+  const maxLen = cols.reduce((m, c2) => Math.max(m, c2.len), 0);
+  return { strokes, maxLen };
+}
+function classifyAccidental(c, iL, lab, W) {
+  if (c.h < 1.4 * iL || c.h > 3.9 * iL || c.w < 0.3 * iL || c.w > 1.5 * iL) return null;
+  const { strokes } = strokesOf(c, lab, W, 1.1 * iL);
+  if (strokes.length === 1) {
+    const st = strokes[0];
+    if (st.len < 1.4 * iL || c.w < 0.45 * iL) return null;
+    // flat: bowl to the right of the stem in the lower part
+    let ink = 0;
+    for (let y = Math.round(c.maxY - 0.9 * iL); y <= c.maxY; y++) for (let x = Math.round(st.x + 0.2 * iL); x <= c.maxX; x++) if (lab[y * W + x] === c.id) ink++;
+    if (ink < 0.12 * iL * iL) return null;
+    if (st.x > c.minX + 0.35 * c.w) return null;
+    return 'flat';
+  }
+  if (strokes.length >= 2) {
+    const a = strokes[0], b = strokes[strokes.length - 1];
+    if (b.x - a.x > 0.9 * iL) return null;
+    if (Math.abs(a.top - b.top) > 0.55 * iL && Math.abs(a.bot - b.bot) > 0.55 * iL) return 'natural';
+    return 'sharp';
+  }
+  return null;
+}
+
+function analyzeHeader(s, near, lab, W, textItems) {
+  const iL = s.iL, mid = s.mid;
+  let clef = null, clefEnd = s.left, confClef = false;
+  for (const c of near) {
+    if (c.w < 0.35 * iL) continue;
+    if (c.minX > s.left + 5 * iL) break;
+    if (c.h >= 2.5 * iL && c.h <= 10 * iL && c.w <= 4 * iL) {
+      const u = { minX: c.minX, maxX: c.maxX, minY: c.minY, maxY: c.maxY };
+      for (const d of near) if (d !== c && d.minX < c.maxX - 0.1 * iL && d.maxX > c.minX && d.minX >= c.minX - 0.3 * iL && d.w >= 2) {
+        u.minY = Math.min(u.minY, d.minY); u.maxY = Math.max(u.maxY, d.maxY); u.maxX = Math.max(u.maxX, d.maxX);
+      }
+      const h = u.maxY - u.minY, pos = (s.bottom - (u.minY + u.maxY) / 2) / (iL / 2);
+      if (h >= 4.8 * iL) clef = 'G2';
+      else if (h >= 3.6 * iL) clef = pos > 5 ? 'C4' : 'C3';
+      else clef = pos >= 4.3 ? 'F4' : 'G2';
+      clefEnd = u.maxX; confClef = true;
+      break;
+    }
+    if (c.h >= 1.3 * iL && c.h <= 2.8 * iL && c.w <= 0.9 * iL && Math.abs(c.cy - mid) < 0.6 * iL && c.area / (c.w * c.h) > 0.6) {
+      clef = 'perc'; clefEnd = c.maxX; confClef = true;
+      const partner = near.find(d => d !== c && d.minX > c.maxX && d.minX - c.maxX < 0.8 * iL && Math.abs(d.cy - mid) < 0.6 * iL && d.h >= 1.3 * iL);
+      if (partner) clefEnd = partner.maxX;
+      break;
+    }
+  }
+  // Key signature
+  let keyType = null, keyCount = 0, keyEnd = clefEnd;
+  const keyComps = [];
+  for (const c of near) {
+    if (c.minX < clefEnd - 0.1 * iL || c.w < 2 || c.h < 2) continue;
+    if (!keyCount && c.w < 0.7 * iL && c.h < 0.7 * iL && c.minX < clefEnd + 1.5 * iL) continue; // bass clef dots
+    if (c.minX - keyEnd > 1.8 * iL) break;
+    if (c.cy < s.top - 1.6 * iL || c.cy > s.bottom + 1.2 * iL) continue;
+    const type = classifyAccidental(c, iL, lab, W);
+    if (type === 'natural' && !keyCount) { keyEnd = c.maxX; continue; }
+    if (!type || type === 'natural' || (keyType && type !== keyType)) break;
+    keyType = type; keyCount++; keyEnd = c.maxX; keyComps.push(c);
+    if (keyCount >= 7) break;
+  }
+  const fifths = keyType === 'sharp' ? keyCount : keyType === 'flat' ? -keyCount : 0;
+  // Time signature
+  let time = null, timeEnd = keyEnd; const timeComps = [];
+  const tc = near.filter(c => c.minX >= keyEnd - 0.1 * iL && c.minX <= keyEnd + 2.4 * iL && c.w >= 0.4 * iL && c.w <= 3 * iL && c.minY >= s.top - 0.7 * iL && c.maxY <= s.bottom + 0.7 * iL);
+  const tops = tc.filter(c => c.maxY <= mid + 0.4 * iL && c.h >= 1.2 * iL && c.h <= 2.6 * iL && c.minY < s.top + 0.6 * iL);
+  const bots = tc.filter(c => c.minY >= mid - 0.4 * iL && c.h >= 1.2 * iL && c.h <= 2.6 * iL && c.maxY > s.bottom - 0.6 * iL);
+  if (tops.length && bots.length && tops.length <= 2 && bots.length <= 2) {
+    const tx0 = Math.min(...tops.map(c => c.minX)), tx1 = Math.max(...tops.map(c => c.maxX));
+    const bx0 = Math.min(...bots.map(c => c.minX)), bx1 = Math.max(...bots.map(c => c.maxX));
+    if (Math.min(tx1, bx1) > Math.max(tx0, bx0)) {
+      timeEnd = Math.max(tx1, bx1); timeComps.push(...tops, ...bots);
+      const x0 = Math.min(tx0, bx0) - 0.3 * iL, x1 = timeEnd + 0.3 * iL;
+      let beats = textNumberInRect(textItems, { x0, x1, y0: s.top - 0.5 * iL, y1: mid });
+      let beatType = textNumberInRect(textItems, { x0, x1, y0: mid, y1: s.bottom + 0.5 * iL });
+      if (!beats) beats = readNumberFromComps(tops, lab, W);
+      if (!beatType) beatType = readNumberFromComps(bots, lab, W);
+      const okB = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15].includes(beats), okT = [2, 4, 8, 16].includes(beatType);
+      time = { beats: okB ? beats : null, beatType: okT ? beatType : null, symbol: null, found: true };
+    }
+  } else {
+    const cc = tc.find(c => c.h >= 1.5 * iL && c.h <= 2.7 * iL && Math.abs(c.cy - mid) < 0.5 * iL && c.w >= 1.0 * iL && c.w <= 2.4 * iL);
+    const cut = tc.find(c => c.h > 2.7 * iL && c.h <= 4.2 * iL && Math.abs(c.cy - mid) < 0.6 * iL && c.w >= 1.0 * iL && c.w <= 2.4 * iL);
+    if (cc && !classifyAccidental(cc, iL, lab, W)) { time = { beats: 4, beatType: 4, symbol: 'common', found: true }; timeEnd = cc.maxX; timeComps.push(cc); }
+    else if (cut) {
+      const { strokes } = strokesOf(cut, lab, W, 2.4 * iL);
+      if (strokes.length === 1 && Math.abs(strokes[0].x - cut.cx) < 0.25 * cut.w) { time = { beats: 2, beatType: 2, symbol: 'cut', found: true }; timeEnd = cut.maxX; timeComps.push(cut); }
+    }
+  }
+  const headerEnd = (confClef ? Math.max(clefEnd, keyEnd, timeEnd) : s.left) + 0.3 * iL;
+  return { clef, fifths, keyCount, keyType, time, clefEnd, keyEnd, timeEnd, headerEnd, keyComps, timeComps };
+}
+
+function findBarlines(s, above, below, clean, chr, lab, W, H) {
+  const iL = s.iL, top = Math.round(s.top), bot = Math.round(s.bottom), hgt = bot - top;
+  const xs = [];
+  const x0 = Math.round(s.header.headerEnd - 0.4 * iL), x1 = Math.min(W - 1, Math.round(s.right + 0.6 * iL));
+  for (let x = Math.max(0, x0); x <= x1; x++) {
+    let miss = 0;
+    for (let y = top; y <= bot; y++) if (!clean[y * W + x]) { if (++miss > hgt * 0.06 + 1) break; }
+    if (miss > hgt * 0.06 + 1) continue;
+    let thin = 0;
+    for (let k = 0; k < 9; k++) { const y = Math.round(top + hgt * (k + 0.5) / 9); if (chr[y * W + x] <= 0.7 * iL) thin++; }
+    if (thin < 7) continue;
+    let t = top; while (t > 0 && clean[(t - 1) * W + x]) t--;
+    let b = bot; while (b < H - 1 && clean[(b + 1) * W + x]) b++;
+    const okUp = top - t <= 0.7 * iL || (above && t <= above.bottom + 0.7 * iL);
+    const okDn = b - bot <= 0.7 * iL || (below && b >= below.top - 0.7 * iL);
+    if (okUp && okDn) xs.push(x);
+  }
+  const strokes = [];
+  for (const x of xs) { const l = strokes[strokes.length - 1]; if (l && x - l.x1 <= 1) l.x1 = x; else strokes.push({ x0: x, x1: x }); }
+  const clusters = [];
+  for (const st of strokes) {
+    if (st.x1 - st.x0 > 0.9 * iL) continue;
+    const l = clusters[clusters.length - 1];
+    if (l && st.x0 - l.x1 <= 1.0 * iL) { l.x1 = st.x1; l.strokes.push(st); } else clusters.push({ x0: st.x0, x1: st.x1, strokes: [st] });
+  }
+  const dot = (cx, cy) => {
+    const r = Math.max(1, Math.round(0.14 * iL)); let ink = 0, tot = 0;
+    for (let y = Math.round(cy) - r; y <= Math.round(cy) + r; y++) for (let x = Math.round(cx) - r; x <= Math.round(cx) + r; x++) { tot++; if (clean[y * W + x]) ink++; }
+    if (ink / tot < 0.5) return false;
+    const id = lab[Math.round(cy) * W + Math.round(cx)]; return id > 0;
+  };
+  const yA = (s.lines[1] + s.lines[2]) / 2, yB = (s.lines[2] + s.lines[3]) / 2;
+  const findDot = (xa, xb) => { for (let x = Math.round(xa); x <= Math.round(xb); x++) if (dot(x, yA) && dot(x, yB)) return true; return false; };
+  for (const c of clusters) {
+    c.thick = c.strokes.some(st => st.x1 - st.x0 + 1 > 0.3 * iL);
+    c.repeatEnd = findDot(c.x0 - 1.0 * iL, c.x0 - 0.2 * iL);
+    c.repeatStart = findDot(c.x1 + 0.2 * iL, c.x1 + 1.0 * iL);
+    c.x = (c.x0 + c.x1) / 2;
+  }
+  return clusters;
+}
+
+function analyzeStaffSymbols(s, ctx) {
+  const { clean, chr, cvr, lab, comps, W, H } = ctx;
+  const iL = s.iL, hdr = s.header;
+  const xA = Math.max(0, Math.round(hdr.headerEnd)), xB = Math.min(W - 1, Math.round(s.right + 0.5 * iL));
+  const yA = Math.max(0, Math.round(s.bandTop)), yB = Math.min(H - 1, Math.round(s.bandBottom));
+  const rw = xB - xA + 1, rh = yB - yA + 1;
+  const heads = [];
+  if (rw < 4 || rh < 4) return { heads: [], rests: [], accs: [], multis: [], events: [] };
+
+  // ---- filled noteheads: thick in both directions after staff/ledger removal
+  const m = new Uint8Array(rw * rh);
+  for (let y = 0; y < rh; y++) for (let x = 0; x < rw; x++) {
+    const i = (y + yA) * W + (x + xA);
+    if (clean[i] && chr[i] >= 0.5 * iL && cvr[i] >= 0.45 * iL) m[y * rw + x] = 1;
+  }
+  const mcc = labelCC(m, rw, rh, false);
+  const fillCand = [];
+  for (const c of mcc.comps) {
+    if (!c) continue;
+    if (c.w < 0.75 * iL || c.w > 2.7 * iL || c.h < 0.55 * iL || c.h > 6 * iL) continue;
+    const fill = c.area / (c.w * c.h);
+    if (fill < 0.45) continue;
+    if (fill > 0.88 && c.h < 0.85 * iL && c.w < 1.8 * iL) continue; // rectangle: whole/half rest
+    const nC = Math.max(1, Math.round(c.w / (1.3 * iL)));
+    for (let k = 0; k < nC; k++) {
+      const sx0 = c.minX + Math.floor(k * c.w / nC), sx1 = c.minX + Math.floor((k + 1) * c.w / nC) - 1, sw = sx1 - sx0 + 1;
+      let runStart = -1;
+      for (let y = c.minY; y <= c.maxY + 1; y++) {
+        let cnt = 0;
+        if (y <= c.maxY) for (let x = sx0; x <= sx1; x++) if (mcc.lab[y * rw + x] === c.id) cnt++;
+        const on = cnt >= 0.3 * sw;
+        if (on && runStart < 0) runStart = y;
+        if (!on && runStart >= 0) {
+          const hr2 = y - runStart;
+          if (hr2 >= 0.5 * iL) {
+            const kk = Math.max(1, Math.round(hr2 / (0.95 * iL)));
+            for (let j = 0; j < kk; j++) {
+              const cy = runStart + (j + 0.5) * hr2 / kk;
+              let sx = 0, n = 0; const ry0 = Math.round(cy - 0.3 * iL), ry1 = Math.round(cy + 0.3 * iL);
+              for (let yy = Math.max(c.minY, ry0); yy <= Math.min(c.maxY, ry1); yy++) for (let x = sx0; x <= sx1; x++) if (mcc.lab[yy * rw + x] === c.id) { sx += x; n++; }
+              let mnx = sx1, mxx = sx0;
+              for (let x = sx0; x <= sx1; x++) if (mcc.lab[Math.round(cy) * rw + x] === c.id) { if (x < mnx) mnx = x; if (x > mxx) mxx = x; }
+              if (!n) continue;
+              const hw = Math.max(0.45 * iL, (mxx - mnx + 1) / 2);
+              if (sw < 0.7 * iL) continue;
+              fillCand.push({ cx: sx / n + xA, cy: cy + yA, hw: Math.min(hw, 0.8 * iL), hollow: false });
+            }
+          }
+          runStart = -1;
+        }
+      }
+    }
+  }
+
+  // ---- hollow noteheads: enclosed holes surrounded by a ring of notehead size
+  const inv = new Uint8Array(rw * rh);
+  for (let y = 0; y < rh; y++) for (let x = 0; x < rw; x++) inv[y * rw + x] = clean[(y + yA) * W + (x + xA)] ? 0 : 1;
+  const icc = labelCC(inv, rw, rh, true);
+  const hollowCand = [];
+  for (const c of icc.comps) {
+    if (!c || c.touches) continue;
+    if (c.area < 0.06 * iL * iL || c.area > 0.8 * iL * iL) continue;
+    if (c.w < 0.28 * iL || c.w > 1.35 * iL || c.h < 0.18 * iL || c.h > 1.0 * iL) continue;
+    const cy = Math.round(c.cy) + yA, cx = Math.round(c.cx) + xA;
+    const scan = (dx, dy) => { let x = cx, y = cy, steps = 0; while (x >= 0 && x < W && y >= 0 && y < H && !clean[y * W + x] && steps < 2 * iL) { x += dx; y += dy; steps++; } const inner = steps; let ring = 0; while (x >= 0 && x < W && y >= 0 && y < H && clean[y * W + x] && ring < 2 * iL) { x += dx; y += dy; ring++; } return { inner, ring }; };
+    const L = scan(-1, 0), R = scan(1, 0), U = scan(0, -1), D = scan(0, 1);
+    const outerW = L.inner + L.ring + R.inner + R.ring, outerH = U.inner + U.ring + D.inner + D.ring;
+    if (outerW < 0.85 * iL || outerW > 2.2 * iL || outerH < 0.55 * iL || outerH > 1.5 * iL) continue;
+    if (L.ring > 0.65 * iL || U.ring > 0.5 * iL || D.ring > 0.5 * iL) continue;
+    const ocx = cx + (R.inner + R.ring - L.inner - L.ring) / 2;
+    hollowCand.push({ cx: ocx, cy: cy + (D.inner + D.ring - U.inner - U.ring) / 2, hw: outerW / 2, hollow: true, ringX: cx - L.inner - 1, outerW });
+  }
+  for (const h of hollowCand) heads.push(h);
+  for (const f of fillCand) if (!hollowCand.some(h => Math.abs(h.cx - f.cx) < 0.6 * iL && Math.abs(h.cy - f.cy) < 0.5 * iL)) heads.push(f);
+
+  // ---- stems, flags/beams, dots
+  const findStem = (h) => {
+    let best = null;
+    for (const dir of ['up', 'down']) {
+      const xa = dir === 'up' ? h.cx + h.hw - 0.35 * iL : h.cx - h.hw - 0.2 * iL;
+      const xb = dir === 'up' ? h.cx + h.hw + 0.2 * iL : h.cx - h.hw + 0.35 * iL;
+      const step = dir === 'up' ? -1 : 1;
+      for (let x = Math.round(xa); x <= Math.round(xb); x++) {
+        if (x < 0 || x >= W) continue;
+        let y = Math.round(h.cy + step * 0.3 * iL), gaps = 0, last = y;
+        if (!clean[y * W + x]) continue;
+        while (y > 0 && y < H - 1) { if (clean[y * W + x]) { gaps = 0; last = y; } else if (++gaps > 2) break; y += step; }
+        const len = Math.abs(last - h.cy);
+        if (len < 2.2 * iL) continue;
+        const midY = Math.round((h.cy + last) / 2);
+        if (chr[midY * W + x] > 0.45 * iL) continue;
+        if (!best || len > best.len) best = { x, dir, len, endY: last };
+      }
+    }
+    return best;
+  };
+  const countBeams = (st) => {
+    const sgn = st.dir === 'up' ? 1 : -1;
+    const maxScan = Math.min(2.8 * iL, st.len - 1.3 * iL);
+    if (maxScan < 0.3 * iL) return 0;
+    let best = 0;
+    for (const off of [0.45, 0.75, -0.45, -0.75]) {
+      const x = Math.round(st.x + off * iL); if (x < 0 || x >= W) continue;
+      let cnt = 0, run = 0;
+      for (let t = Math.round(-0.25 * iL); t <= maxScan; t++) {
+        const y = Math.round(st.endY + sgn * t); if (y < 0 || y >= H) continue;
+        if (clean[y * W + x]) run++; else { if (run >= 0.22 * iL) cnt++; run = 0; }
+      }
+      if (run >= 0.22 * iL) cnt++;
+      best = Math.max(best, cnt);
+    }
+    return Math.min(best, 3);
+  };
+  const compAt = (x, y) => { x = Math.round(x); y = Math.round(y); if (x < 0 || y < 0 || x >= W || y >= H) return 0; return lab[y * W + x]; };
+  const near = s.nearComps;
+  const findDots = (h, stem) => {
+    let n = 0, fromX = h.cx + h.hw + 0.1 * iL;
+    if (stem && stem.dir === 'up') fromX = Math.max(fromX, stem.x + 0.15 * iL);
+    for (let pass = 0; pass < 2; pass++) {
+      const d = near.find(c => c.minX >= fromX && c.minX <= fromX + 1.1 * iL && c.w >= 0.18 * iL && c.w <= 0.65 * iL && c.h >= 0.18 * iL && c.h <= 0.65 * iL && c.cy >= h.cy - 0.85 * iL && c.cy <= h.cy + 0.4 * iL && c.area / (c.w * c.h) > 0.5);
+      if (!d) break; n++; fromX = d.maxX + 0.1 * iL;
+    }
+    return n;
+  };
+  const headComp = new Set();
+  for (const h of heads) {
+    h.pos = Math.round((s.bottom - h.cy) / (iL / 2));
+    h.stem = findStem(h);
+    h.beams = h.stem && !h.hollow ? countBeams(h.stem) : 0;
+    const id = h.hollow ? compAt(h.ringX, h.cy) : compAt(h.cx, h.cy);
+    if (id) headComp.add(id);
+    if (h.stem) { const sid = compAt(h.stem.x, (h.cy + h.stem.endY) / 2); if (sid) headComp.add(sid); }
+  }
+  // heads without stems next to a stemmed chord join that chord (seconds in chords)
+  for (const h of heads) if (!h.stem && !h.hollow) {
+    const o = heads.find(g => g.stem && Math.abs(g.stem.x - h.cx) <= h.hw + 0.35 * iL && Math.abs(g.cy - h.cy) < 1.6 * iL);
+    if (o) { h.stem = o.stem; h.beams = o.beams; }
+  }
+  const validHeads = heads.filter(h => h.pos >= -14 && h.pos <= 22);
+
+  // ---- accidentals, rests, multi-measure rests from components
+  const accs = [], rests = [], multis = [];
+  for (const c of near) {
+    if (c.maxX < xA || c.minX > xB || headComp.has(c.id)) continue;
+    const acc = classifyAccidental(c, iL, lab, W);
+    if (acc) { accs.push({ c, type: acc, used: false }); continue; }
+    const fill = c.area / (c.w * c.h);
+    // multi-measure rest bar
+    if (c.w >= 2.5 * iL && c.h >= 0.4 * iL && c.h <= 2.6 * iL && Math.abs(c.cy - s.mid) <= 0.7 * iL) {
+      let rows = 0;
+      for (let y = Math.round(s.mid - 0.6 * iL); y <= Math.round(s.mid + 0.6 * iL); y++) { let cnt = 0; for (let x = c.minX; x <= c.maxX; x++) if (lab[y * W + x] === c.id) cnt++; if (cnt > 0.7 * c.w) rows++; }
+      if (rows >= 0.3 * iL) {
+        const r = { x0: c.minX - 0.3 * iL, x1: c.maxX + 0.3 * iL, y0: s.top - 3.2 * iL, y1: s.top - 0.1 * iL };
+        let count = textNumberInRect(ctx.textItems, r);
+        if (!count) {
+          const dg = near.filter(d => d.cx >= r.x0 && d.cx <= r.x1 && d.cy >= r.y0 && d.cy <= r.y1 && d.h >= 0.9 * iL && d.h <= 3 * iL);
+          count = readNumberFromComps(dg, lab, W);
+        }
+        multis.push({ c, x: c.minX, count: count && count < 400 ? count : null });
+        continue;
+      }
+    }
+    if (c.cy < s.top - 0.6 * iL || c.cy > s.bottom + 0.6 * iL) continue;
+    // whole / half rests (filled rectangles hanging from line 4 / sitting on line 3)
+    if (c.w >= 0.8 * iL && c.w <= 1.8 * iL && c.h >= 0.3 * iL && c.h <= 0.85 * iL && fill > 0.8) {
+      if (Math.abs(c.minY - s.lines[1]) <= 0.35 * iL) { rests.push({ c, x: c.minX, type: 'whole' }); continue; }
+      if (Math.abs(c.maxY - s.lines[2]) <= 0.35 * iL) { rests.push({ c, x: c.minX, type: 'half' }); continue; }
+    }
+    const { maxLen } = strokesOf(c, lab, W, 9999);
+    if (c.h >= 2.0 * iL && c.h <= 3.6 * iL && c.w >= 0.5 * iL && c.w <= 1.4 * iL && maxLen < 1.4 * iL && Math.abs(c.cy - s.mid) < 1.2 * iL && fill > 0.25) {
+      rests.push({ c, x: c.minX, type: 'quarter' }); continue;
+    }
+    if (c.h >= 1.2 * iL && c.h < 2.0 * iL && c.w >= 0.55 * iL && c.w <= 1.4 * iL && maxLen < 1.5 * iL && Math.abs(c.cy - s.mid) < 1.3 * iL) {
+      let tl = 0, tot = 0;
+      for (let y = c.minY; y < c.minY + c.h * 0.4; y++) for (let x = c.minX; x < c.minX + c.w * 0.55; x++) { tot++; if (lab[y * W + x] === c.id) tl++; }
+      if (tot && tl / tot > 0.3) { rests.push({ c, x: c.minX, type: 'eighth' }); continue; }
+    }
+  }
+  // rest dots
+  for (const r of rests) {
+    const d = near.find(c => c.minX > r.c.maxX && c.minX < r.c.maxX + 1.0 * iL && c.w <= 0.65 * iL && c.h <= 0.65 * iL && c.w >= 0.18 * iL && Math.abs(c.cy - r.c.cy) < 1.2 * iL && c.area / (c.w * c.h) > 0.5);
+    r.dots = d ? 1 : 0;
+  }
+  // accidentals → heads
+  const sortedHeads = [...validHeads].sort((a, b) => a.cx - b.cx);
+  for (const h of sortedHeads) {
+    let best = null, bd = Infinity;
+    for (const a of accs) {
+      if (a.used) continue;
+      const left = h.cx - h.hw;
+      if (a.c.maxX > left + 0.2 * iL || a.c.maxX < left - 2.4 * iL) continue;
+      const refY = a.type === 'flat' ? a.c.maxY - 0.45 * iL : a.c.cy;
+      if (Math.abs(refY - h.cy) > 0.45 * iL) continue;
+      const d = left - a.c.maxX; if (d < bd) { bd = d; best = a; }
+    }
+    if (best) { best.used = true; h.acc = best.type; }
+  }
+
+  // ---- group heads into chords/events
+  const events = [];
+  for (const h of sortedHeads) {
+    let g = null;
+    if (h.stem) g = events.find(e => e.stem && e.stem.dir === h.stem.dir && Math.abs(e.stem.x - h.stem.x) <= 0.35 * iL);
+    else g = events.find(e => !e.stem && e.hollow === h.hollow && Math.abs(e.x - h.cx) <= 0.6 * iL);
+    if (g) { g.heads.push(h); continue; }
+    let type;
+    if (h.hollow) type = h.stem ? 'half' : (h.outerW >= 1.38 * iL ? 'whole' : 'half');
+    else type = h.stem ? BEAM_TYPE[h.beams] : 'quarter';
+    events.push({ kind: 'note', x: h.cx, heads: [h], stem: h.stem, hollow: h.hollow, type, beams: h.hollow ? 0 : h.beams, dots: 0 });
+  }
+  for (const e of events) {
+    const right = e.heads.reduce((a, b) => (a.cx + a.hw > b.cx + b.hw ? a : b));
+    e.dots = findDots(right, e.stem);
+    e.x = Math.min(...e.heads.map(h => h.cx));
+  }
+  for (const r of rests) events.push({ kind: 'rest', x: r.x, type: r.type, dots: r.dots, c: r.c });
+  for (const mr of multis) events.push({ kind: 'multirest', x: mr.x, count: mr.count });
+  events.sort((a, b) => a.x - b.x);
+  // beam connections between consecutive notes
+  for (let i = 0; i + 1 < events.length; i++) {
+    const a = events[i], b = events[i + 1];
+    if (a.kind !== 'note' || b.kind !== 'note' || !a.stem || !b.stem || !a.beams || !b.beams || a.stem.dir !== b.stem.dir) continue;
+    const dx = b.stem.x - a.stem.x; if (dx <= 0.5 * iL || dx > 14 * iL) continue;
+    let ok = 0;
+    for (let k = 1; k <= 4; k++) {
+      const t = k / 5, x = Math.round(a.stem.x + dx * t), y = a.stem.endY + (b.stem.endY - a.stem.endY) * t;
+      let run = 0, bestRun = 0;
+      for (let yy = Math.round(y - 0.7 * iL); yy <= Math.round(y + 0.7 * iL); yy++) { if (yy >= 0 && yy < H && clean[yy * W + x]) { run++; bestRun = Math.max(bestRun, run); } else run = 0; }
+      if (bestRun >= 0.3 * iL) ok++;
+    }
+    if (ok >= 4) a.beamNext = true;
+  }
+  return { heads: validHeads, rests, accs, multis, events };
+}
+
+/* Analyze one rendered page */
+function analyzePage(canvas, textItems) {
+  let W = canvas.width, H = canvas.height;
+  let gray = grayFromCanvas(canvas);
+  let bin = binarize(gray, otsu(gray));
+  const skew = estimateSkew(bin, W, H);
+  if (skew) {
+    canvas = rotateCanvas(canvas, skew);
+    gray = grayFromCanvas(canvas); bin = binarize(gray, otsu(gray));
+  }
+  gray = null;
+  const sp = estimateSpacing(bin, W, H);
+  const result = { W, H, canvas, staves: [], systems: [], skew, textItems: textItems || [] };
+  if (sp.iL < 5) return result;
+  let hr = hRuns(bin, W, H), vr = vRuns(bin, W, H);
+  const staves = findStaves(bin, hr, vr, W, H, sp);
+  result.staves = staves;
+  if (!staves.length) return result;
+  const maxT = Math.max(2, Math.round(sp.thick + Math.max(2, sp.thick * 0.6)));
+  const clean = bin.slice();
+  removeStaffLines(bin, clean, W, H, staves, maxT);
+  // band limits between neighbouring staves
+  staves.forEach((s, i) => {
+    const prev = staves[i - 1], next = staves[i + 1];
+    s.bandTop = prev ? Math.max(s.top - 5.5 * s.iL, (prev.bottom + s.top) / 2) : s.top - 5.5 * s.iL;
+    s.bandBottom = next ? Math.min(s.bottom + 5.5 * s.iL, (s.bottom + next.top) / 2) : s.bottom + 5.5 * s.iL;
+  });
+  // remove ledger lines, ties and other thin horizontals inside staff bands (outside the clef area)
+  let chr = hRuns(clean, W, H, hr), cvr = vRuns(clean, W, H, vr);
+  for (const s of staves) {
+    const y0 = Math.max(0, Math.round(s.bandTop)), y1 = Math.min(H - 1, Math.round(s.bandBottom));
+    const x0 = Math.max(0, Math.round(s.left + 3.2 * s.iL)), x1 = Math.min(W - 1, Math.round(s.right + s.iL));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const i = y * W + x; if (clean[i] && chr[i] >= 1.2 * s.iL && cvr[i] <= maxT) clean[i] = 0; }
+  }
+  chr = hRuns(clean, W, H, chr); cvr = vRuns(clean, W, H, cvr);
+  const { lab, comps } = labelCC(clean, W, H, false);
+  const sysIdx = groupSystems(staves, bin, W);
+  // header & barlines
+  staves.forEach(s => {
+    s.nearComps = comps.filter(c => c && c.maxX >= s.left - 0.2 * s.iL && c.minX <= s.right + s.iL && c.cy >= s.bandTop && c.cy <= s.bandBottom).sort((a, b) => a.minX - b.minX);
+    s.header = analyzeHeader(s, s.nearComps, lab, W, textItems);
+  });
+  sysIdx.forEach(idxs => idxs.forEach((si, k) => {
+    const s = staves[si];
+    s.bars = findBarlines(s, k > 0 ? staves[idxs[k - 1]] : null, k < idxs.length - 1 ? staves[idxs[k + 1]] : null, clean, chr, lab, W, H);
+  }));
+  const ctx = { clean, chr, cvr, lab, comps, W, H, textItems };
+  staves.forEach(s => { s.sym = analyzeStaffSymbols(s, ctx); });
+  // consensus barlines and measure segmentation per system
+  result.systems = sysIdx.map(idxs => {
+    const sts = idxs.map(i => staves[i]);
+    const iL = median(sts.map(s => s.iL));
+    let bars;
+    if (sts.length === 1) bars = sts[0].bars;
+    else {
+      const all = []; sts.forEach((s, k) => s.bars.forEach(b => all.push({ ...b, k })));
+      all.sort((a, b) => a.x - b.x);
+      const groups = [];
+      for (const b of all) { const g = groups[groups.length - 1]; if (g && b.x - g.x1 <= 0.8 * iL) { g.items.push(b); g.x1 = Math.max(g.x1, b.x1); } else groups.push({ x0: b.x0, x1: b.x1, items: [b] }); }
+      bars = groups.filter(g => new Set(g.items.map(b => b.k)).size >= Math.ceil(sts.length / 2)).map(g => ({
+        x0: Math.min(...g.items.map(b => b.x0)), x1: Math.max(...g.items.map(b => b.x1)), x: median(g.items.map(b => b.x)),
+        repeatStart: g.items.some(b => b.repeatStart), repeatEnd: g.items.some(b => b.repeatEnd), thick: g.items.some(b => b.thick)
+      }));
+    }
+    // segments
+    const segs = [];
+    const starts = sts.map(s => s.header.headerEnd);
+    const sysRight = Math.max(...sts.map(s => s.right));
+    let prevBar = null;
+    const bounds = [...bars.filter(b => b.x > Math.min(...starts) + 0.5 * iL)];
+    for (let k = 0; k <= bounds.length; k++) {
+      const endBar = bounds[k] || null;
+      const x1 = endBar ? endBar.x0 : sysRight + iL;
+      const x0s = sts.map((s, j) => prevBar ? prevBar.x1 : starts[j]);
+      const evs = sts.map((s, j) => s.sym.events.filter(e => e.x >= x0s[j] - 0.2 * iL && e.x < x1));
+      const width = x1 - Math.max(...x0s);
+      if (evs.some(e => e.length) || (width >= 2.5 * iL && endBar)) {
+        segs.push({ x0s, x1, staffEvents: evs, repeatStart: !!(prevBar && prevBar.repeatStart), repeatEnd: !!(endBar && endBar.repeatEnd), final: !!(endBar && endBar.thick && !endBar.repeatEnd && k === bounds.length - 1) });
+      }
+      prevBar = endBar;
+    }
+    return { staffIdx: idxs, staves: sts, bars, segs };
+  });
+  result.iL = sp.iL;
+  result.overlay = drawOverlay(canvas, result);
+  return result;
+}
+
+function drawOverlay(canvas, res) {
+  const scale = Math.min(1, 1100 / canvas.width);
+  const c = document.createElement('canvas'); c.width = Math.round(canvas.width * scale); c.height = Math.round(canvas.height * scale);
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+  g.globalAlpha = 0.45; g.drawImage(canvas, 0, 0, c.width, c.height); g.globalAlpha = 1;
+  g.scale(scale, scale);
+  for (const s of res.staves) {
+    const iL = s.iL;
+    g.strokeStyle = 'rgba(37,99,235,.55)'; g.lineWidth = Math.max(1, 0.12 * iL);
+    for (const y of s.lines) { g.beginPath(); g.moveTo(s.left, y); g.lineTo(s.right, y); g.stroke(); }
+    g.fillStyle = 'rgba(100,116,139,.18)'; g.fillRect(s.left, s.top - iL, s.header.headerEnd - s.left, s.bottom - s.top + 2 * iL);
+    g.fillStyle = '#475569'; g.font = `bold ${Math.round(iL * 0.9)}px sans-serif`;
+    const t = s.header.time;
+    g.fillText(`${CLEF_LABEL[s.header.clef] || '?'} · ${s.header.fifths > 0 ? s.header.fifths + '♯' : s.header.fifths < 0 ? -s.header.fifths + '♭' : '0'}${t ? ' · ' + (t.beats || '?') + '/' + (t.beatType || '?') : ''}`, s.left, s.top - 1.3 * iL);
+    for (const b of s.bars) { g.fillStyle = 'rgba(249,115,22,.75)'; g.fillRect(b.x0 - 1, s.top, b.x1 - b.x0 + 3, s.bottom - s.top); }
+    for (const h of s.sym.heads) {
+      g.strokeStyle = h.hollow ? '#0891b2' : '#16a34a'; g.lineWidth = Math.max(1.5, 0.15 * iL);
+      g.beginPath(); g.ellipse(h.cx, h.cy, h.hw + 0.15 * iL, 0.65 * iL, 0, 0, Math.PI * 2); g.stroke();
+      if (h.stem) { g.beginPath(); g.moveTo(h.stem.x, h.cy); g.lineTo(h.stem.x, h.stem.endY); g.stroke(); }
+    }
+    for (const e of s.sym.events) if (e.kind === 'note') {
+      g.fillStyle = '#166534'; g.font = `${Math.round(iL * 0.8)}px sans-serif`;
+      const y = s.bottom + 1.6 * iL + (e.heads[0].pos < -3 ? 2.5 * iL : 0);
+      g.fillText({ whole: 'w', half: 'h', quarter: 'q', eighth: '8', '16th': '16', '32nd': '32' }[e.type] + (e.dots ? '.' : ''), e.x - 0.3 * iL, y);
+    }
+    for (const r of s.sym.rests) { g.strokeStyle = '#9333ea'; g.lineWidth = Math.max(1.5, 0.15 * iL); g.strokeRect(r.c.minX - 2, r.c.minY - 2, r.c.w + 4, r.c.h + 4); }
+    for (const m of s.sym.multis) { g.strokeStyle = '#9333ea'; g.strokeRect(m.c.minX - 2, m.c.minY - 2, m.c.w + 4, m.c.h + 4); g.fillStyle = '#9333ea'; g.fillText(String(m.count || '?'), m.c.cx, s.top - 0.5 * iL); }
+    for (const a of s.sym.accs) { g.strokeStyle = '#dc2626'; g.lineWidth = Math.max(1.5, 0.12 * iL); g.strokeRect(a.c.minX - 2, a.c.minY - 2, a.c.w + 4, a.c.h + 4); }
+  }
+  return { url: c.toDataURL('image/jpeg', 0.72), scale, staves: res.staves.map(s => ({ top: s.top, bottom: s.bottom, iL: s.iL })) };
+}
+
+/* ====================================================================
+   Text layer helpers
+   ==================================================================== */
+function groupTextLines(items) {
+  const sorted = [...items].sort((a, b) => a.baseline - b.baseline || a.x - b.x);
+  const lines = [];
+  for (const it of sorted) {
+    const l = lines.find(L => Math.abs(L.baseline - it.baseline) < Math.max(2, 0.35 * Math.min(L.h, it.h)) && it.x - (L.x + L.w) < 1.5 * Math.max(L.h, it.h) && it.x >= L.x - 1);
+    if (l) { const gap = it.x - (l.x + l.w); l.str += (gap > 0.15 * it.h ? ' ' : '') + it.str; l.w = Math.max(l.x + l.w, it.x + it.w) - l.x; l.h = Math.max(l.h, it.h); }
+    else lines.push({ ...it });
+  }
+  return lines.filter(l => l.str.trim());
+}
+function pageHeaderInstrument(page) {
+  const firstTop = page.staves.length ? page.staves[0].top : page.H * 0.3;
+  const lines = page.textLines.filter(l => l.baseline < firstTop - 0.5 * (page.iL || 10) && l.baseline < page.H * 0.35);
+  const hits = lines.map(l => ({ l, m: matchInstrument(l.str, false) })).filter(x => x.m);
+  if (!hits.length) return null;
+  const off = hits.filter(x => Math.abs(x.l.x + x.l.w / 2 - page.W / 2) > 0.15 * page.W);
+  return (off[0] || hits[0]).m;
+}
+function staffLabel(page, s, sys) {
+  const iL = s.iL;
+  const cands = page.textLines.filter(l => l.x + l.w <= s.left + 0.6 * iL && l.x + l.w >= s.left - 22 * iL && l.baseline >= sys.staves[0].top - 1.5 * iL && l.baseline - l.h <= sys.staves[sys.staves.length - 1].bottom + 1.5 * iL);
+  let best = null, bd = Infinity;
+  for (const l of cands) {
+    const cy = l.baseline - l.h / 2;
+    let nearest = null, nd = Infinity;
+    for (const t of sys.staves) { const d = Math.abs(cy - (t.top + t.bottom) / 2); if (d < nd) { nd = d; nearest = t; } }
+    if (nearest !== s) continue;
+    const m = matchInstrument(l.str, true);
+    if (m && nd < bd) { bd = nd; best = m; }
+  }
+  return best;
+}
+function findTempo(page) {
+  const firstTop = page.staves.length ? page.staves[0].top : page.H * 0.3;
+  for (const l of page.textLines) {
+    if (l.baseline > firstTop + 0.5 * (page.iL || 10)) continue;
+    const m = normText(l.str).match(/(?:=|\bm\.?\s*m\.?\s*)\s*c?a?\.?\s*(\d{2,3})\b/);
+    if (m) { const v = parseInt(m[1], 10); if (v >= 30 && v <= 300) return v; }
+  }
+  return null;
+}
+function findTitleComposer(page) {
+  const firstTop = page.staves.length ? page.staves[0].top : page.H * 0.3;
+  const top = page.textLines.filter(l => l.baseline < Math.min(firstTop, page.H * 0.3) && /[a-z]{2,}/i.test(l.str) && !/[-]/u.test(l.str) && !matchInstrument(l.str, false) && !/^\s*(full\s+)?(score|conductor)\s*$/i.test(l.str) && !/=\s*\d/.test(l.str));
+  if (!top.length) return {};
+  const title = [...top].sort((a, b) => b.h - a.h)[0];
+  const comp = top.filter(l => l !== title && l.x > page.W * 0.55 && !matchInstrument(l.str, false)).sort((a, b) => a.baseline - b.baseline)[0];
+  return { title: title.str.trim(), composer: comp ? comp.str.trim() : null };
+}
+
+/* ====================================================================
+   Assemble pages → document (parts, measures)
+   ==================================================================== */
+function guessInstByClef(clef) { return clef === 'F4' ? 'unknown_bass' : clef === 'C3' ? 'viola' : clef === 'perc' ? 'percussion' : 'unknown'; }
+
+function assembleDocument(fileName, pages) {
+  const warnings = [];
+  const systems = [];
+  pages.forEach((pg, pi) => pg.systems.forEach(sys => systems.push({ ...sys, page: pi })));
+  if (!systems.length) throw new Error('No five-line staves were found. If this is a scan, try a higher resolution (300 dpi) image or PDF.');
+  const fileInst = matchInstrument(fileName.replace(/\.[^.]+$/, '').replace(/[_\-+]+/g, ' '), true);
+  const maxN = Math.max(...systems.map(s => s.staves.length));
+  const parts = []; // {instId, num, label, trans, staffCount, measures:[], headers:[]}
+  const newPart = (m, staffCount, fallbackClef) => {
+    let instId = m ? m.instId : null;
+    if (!instId || instId === 'unknown_bass') instId = fallbackClef === 'F4' ? 'unknown' : (instId || 'unknown');
+    const p = { instId, num: m ? m.num : null, label: m ? m.raw : null, trans: m ? m.trans : null, transFor: instId, staffCount, measures: [], headers: [], unlabeled: !m };
+    if (fallbackClef === 'F4' && p.instId === 'unknown') p.unknownBass = true;
+    parts.push(p); return p;
+  };
+  const pushMeasures = (part, sys, staffNos) => {
+    for (const seg of sys.segs) {
+      const staffEvents = staffNos.map(k => (k == null ? [] : seg.staffEvents[k]));
+      const multi = staffEvents[0].find(e => e.kind === 'multirest');
+      const onlyMulti = multi && !staffEvents[0].some(e => e.kind === 'note');
+      const clefs = staffNos.map(k => (k == null ? null : sys.staves[k].header.clef));
+      const fifths = staffNos.map(k => (k == null ? null : sys.staves[k].header.fifths));
+      const base = { repeatStart: seg.repeatStart, repeatEnd: seg.repeatEnd, final: seg.final, clefs, fifths, page: sys.page, staffRefs: staffNos.map(k => (k == null ? null : { page: sys.page, top: sys.staves[k].top, bottom: sys.staves[k].bottom, x0: seg.x0s[k], x1: seg.x1 })) };
+      if (onlyMulti) {
+        const n = multi.count || 1;
+        if (!multi.count) part.multiUnread = (part.multiUnread || 0) + 1;
+        for (let i = 0; i < n; i++) part.measures.push({ ...base, staffEvents: staffNos.map(() => []), multiRest: i === 0 ? n : 0, repeatStart: i === 0 && base.repeatStart, repeatEnd: i === n - 1 && base.repeatEnd });
+      } else part.measures.push({ ...base, staffEvents: staffEvents.map(evs => evs.filter(e => e.kind !== 'multirest')) });
+    }
+    staffNos.forEach(k => { if (k != null) part.headers.push(sys.staves[k].header); });
+  };
+
+  if (maxN === 1) {
+    // single parts or a packet of parts
+    let cur = null;
+    systems.forEach((sys, si) => {
+      const pg = pages[sys.page];
+      const isFirstOnPage = si === 0 || systems[si - 1].page !== sys.page;
+      if (isFirstOnPage) {
+        const hdr = pageHeaderInstrument(pg);
+        if (!cur) cur = newPart(hdr || fileInst, 1, sys.staves[0].header.clef);
+        else if (hdr && (hdr.instId !== cur.instId || (hdr.num || null) !== (cur.num || null)) && !(cur.unlabeled && sys.page <= 1)) cur = newPart(hdr, 1, sys.staves[0].header.clef);
+        else if (hdr && cur.unlabeled) Object.assign(cur, { instId: hdr.instId, num: hdr.num, label: hdr.raw, trans: hdr.trans, transFor: hdr.instId, unlabeled: false });
+      }
+      pushMeasures(cur, sys, [0]);
+    });
+    if (parts.length > 1) warnings.push(`Found ${parts.length} different part headers, so the file was split into ${parts.length} parts (one per instrument).`);
+  } else {
+    const ref = systems.find(s => s.staves.length === maxN);
+    const refPage = pages[ref.page];
+    const labels = ref.staves.map(s => staffLabel(refPage, s, ref));
+    const slots = []; // {part, staffNo}
+    const headerInst = pageHeaderInstrument(pages[0]) || fileInst;
+    if (labels.every(l => !l) && maxN === 2 && (!headerInst || INST[headerInst.instId]?.grand)) {
+      const p = newPart(headerInst && INST[headerInst.instId]?.grand ? headerInst : { instId: 'piano', num: null, raw: 'Piano' }, 2);
+      slots.push({ part: p, staffNo: 0 }, { part: p, staffNo: 1 });
+    } else {
+      for (let i = 0; i < maxN; i++) {
+        const lb = labels[i];
+        if (lb && INST[lb.instId]?.grand && i + 1 < maxN && !labels[i + 1]) {
+          const p = newPart(lb, 2); slots.push({ part: p, staffNo: 0 }, { part: p, staffNo: 1 }); i++; continue;
+        }
+        if (!lb && i > 0 && labels[i - 1] && INST[labels[i - 1].instId]?.grand && slots[slots.length - 1].part.staffCount === 1 && slots[slots.length - 1].staffNo === 0 && !slots[slots.length - 1].part.secondTaken) {
+          const p = slots[slots.length - 1].part; p.staffCount = 2; slots.push({ part: p, staffNo: 1 }); continue;
+        }
+        const p = newPart(lb, 1, ref.staves[i].header.clef);
+        slots.push({ part: p, staffNo: 0 });
+      }
+      if (labels.every(l => !l)) warnings.push('No instrument names were found next to the staves. Choose the instruments below.');
+    }
+    // map every system to slots
+    for (const sys of systems) {
+      let assign;
+      if (sys.staves.length === slots.length) assign = slots.map((_, i) => i);
+      else {
+        assign = []; let last = -1;
+        const sysLabels = sys.staves.map(s => staffLabel(pages[sys.page], s, sys));
+        sys.staves.forEach((s, k) => {
+          const lb = sysLabels[k];
+          let idx = -1;
+          if (lb) idx = slots.findIndex((sl, j) => j > last && sl.staffNo === 0 && sl.part.instId === lb.instId && (!lb.num || !sl.part.num || lb.num === sl.part.num));
+          if (idx < 0) idx = Math.min(slots.length - 1, last + 1);
+          assign.push(idx); last = idx;
+        });
+        if (!sysLabels.some(Boolean)) warnings.push(`A system on page ${sys.page + 1} has ${sys.staves.length} of ${slots.length} staves and no labels; staves were matched top-down.`);
+      }
+      for (const p of parts) {
+        const staffNos = new Array(p.staffCount).fill(null);
+        assign.forEach((slotIdx, k) => { const sl = slots[slotIdx]; if (sl && sl.part === p && staffNos[sl.staffNo] == null) staffNos[sl.staffNo] = k; });
+        pushMeasures(p, sys, staffNos);
+      }
+    }
+  }
+
+  // per-part key, clef
+  for (const p of parts) {
+    const hs = p.headers.filter(Boolean);
+    p.fifths = mode(hs.map(h => h.fifths)) ?? 0;
+    p.clefs = [];
+    for (let k = 0; k < p.staffCount; k++) {
+      const cl = p.measures.map(m => m.clefs[k]).filter(Boolean);
+      const inst = INST[p.instId] || INST.unknown;
+      p.clefs.push(cl[0] || (k === 1 ? (inst.clef2 || 'F4') : inst.clef));
+    }
+    if (p.unknownBass) p.instId = 'unknown';
+    if (p.instId === 'unknown' && p.clefs[0] === 'perc') p.instId = 'percussion';
+    if (p.multiUnread) warnings.push(`${partDisplayName(p)}: ${p.multiUnread} multi-measure rest count(s) couldn't be read and were counted as 1 bar.`);
+  }
+  // time signature
+  let time = null, timeSource = 'detected';
+  for (const p of parts) for (const h of p.headers) if (h && h.time && h.time.beats && h.time.beatType) { time = { beats: h.time.beats, beatType: h.time.beatType, symbol: h.time.symbol }; break; }
+  if (!time) {
+    const sums = [];
+    for (const p of parts) p.measures.forEach((m, i) => { if (i > 0 && i < p.measures.length - 1 && !m.multiRest) { const s = measureSum(m.staffEvents[0], null); if (s > 0) sums.push(s); } });
+    const md = mode(sums) || 192;
+    const q = md / 48;
+    time = q === 1.5 ? { beats: 3, beatType: 8 } : q === 3 ? { beats: 3, beatType: 4 } : q === 2 ? { beats: 2, beatType: 4 } : q === 5 ? { beats: 5, beatType: 4 } : q === 6 ? { beats: 6, beatType: 4 } : { beats: 4, beatType: 4 };
+    timeSource = 'inferred';
+    warnings.push(`Time signature wasn't read from the page; ${time.beats}/${time.beatType} was inferred from the rhythms.`);
+  }
+  // equalize measure counts
+  const maxM = Math.max(...parts.map(p => p.measures.length));
+  for (const p of parts) while (p.measures.length < maxM) p.measures.push({ staffEvents: new Array(p.staffCount).fill(0).map(() => []), clefs: [], fifths: [], padded: true, staffRefs: [] });
+
+  const pg0 = pages[0];
+  const tc = findTitleComposer(pg0);
+  const concert = pages.some(pg => pg.textLines.some(l => /\b(concert\s+pitch|c\s+score|score\s+in\s+c|partitur\s+in\s+c)\b/.test(normText(l.str))));
+  return {
+    fileName,
+    title: tc.title || fileName.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '),
+    composer: tc.composer || null,
+    tempo: findTempo(pg0),
+    time, timeSource, concert, parts, warnings,
+    pages: pages.length,
+    overlays: pages.map(pg => pg.overlay).filter(Boolean)
+  };
+}
+
+function eventDiv(e, measureLen) {
+  if (e.kind === 'rest' && e.type === 'whole' && measureLen) return null; // resolved by caller
+  const base = TYPE_DIV[e.type] || 48;
+  return e.dots === 2 ? base * 1.75 : e.dots === 1 ? base * 1.5 : base;
+}
+function measureSum(events, measureLen) {
+  const ev = events.filter(e => e.kind !== 'multirest');
+  if (ev.length === 1 && ev[0].kind === 'rest' && ev[0].type === 'whole') return measureLen || 192;
+  return ev.reduce((s, e) => s + (eventDiv(e) || TYPE_DIV.whole), 0);
+}
+function partDisplayName(p) { const inst = INST[p.instId] || INST.unknown; return inst.name + (p.num ? ' ' + p.num : ''); }
+function partTrans(p) { const inst = INST[p.instId] || INST.unknown; return p.trans && p.transFor === p.instId ? p.trans : inst.t; }
+
+/* Per-measure validation */
+function validateDoc(doc) {
+  const E = doc.time.beats * (192 / doc.time.beatType);
+  let flagged = 0;
+  for (const p of doc.parts) {
+    p.flagged = 0;
+    p.measures.forEach((m, i) => {
+      m.flag = null;
+      if (m.multiRest !== undefined && m.multiRest === 0 && !m.staffEvents.some(e => e.length)) return;
+      m.staffEvents.forEach(evs => {
+        if (!evs.length) return;
+        const s = measureSum(evs, E);
+        if (s > E + 0.01) m.flag = 'over';
+        else if (s < E - 0.01 && i !== 0 && i !== p.measures.length - 1 && !m.flag) m.flag = 'under';
+      });
+      if (m.flag) { p.flagged++; flagged++; }
+    });
+  }
+  doc.flagged = flagged;
+  doc.pickup = doc.parts.every(p => { const m = p.measures[0]; if (!m) return false; const s = measureSum(m.staffEvents[0], E); return m.staffEvents[0].length && s < E && !m.multiRest; }) && doc.parts.some(p => p.measures[0].staffEvents[0].some(e => e.kind === 'note'));
+}
+
+/* ====================================================================
+   MusicXML writer
+   ==================================================================== */
+function escapeXml(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function keyAlter(step, fifths) {
+  if (fifths > 0) return SHARP_ORDER.slice(0, fifths).includes(step) ? 1 : 0;
+  if (fifths < 0) return FLAT_ORDER.slice(0, -fifths).includes(step) ? -1 : 0;
+  return 0;
+}
+function restTypesFor(div) {
+  const out = []; let left = Math.round(div);
+  for (const [t, d] of [['whole', 192], ['half', 96], ['quarter', 48], ['eighth', 24], ['16th', 12], ['32nd', 6]]) {
+    while (left >= d) { out.push({ type: t, div: d }); left -= d; }
+  }
+  return out;
+}
+function pitchOf(pos, clef) {
+  const idx = (CLEF_BASE[clef] ?? 30) + pos;
+  return { step: DIA[((idx % 7) + 7) % 7], octave: Math.floor(idx / 7) };
+}
+
+function buildMusicXML(doc) {
+  validateDoc(doc);
+  const E = doc.time.beats * (192 / doc.time.beatType);
+  const today = new Date().toISOString().slice(0, 10);
+  let x = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">\n<score-partwise version="4.0">\n`;
+  x += `  <work><work-title>${escapeXml(doc.title)}</work-title></work>\n  <identification>\n`;
+  if (doc.composer) x += `    <creator type="composer">${escapeXml(doc.composer)}</creator>\n`;
+  x += `    <encoding><software>PDF to Flat.io Converter (in-browser OMR)</software><encoding-date>${today}</encoding-date></encoding>\n  </identification>\n  <part-list>\n`;
+  let ch = 1;
+  doc.parts.forEach((p, i) => {
+    const inst = INST[p.instId] || INST.unknown, id = `P${i + 1}`;
+    let channel = inst.perc ? 10 : ch; if (!inst.perc) { ch++; if (ch === 10) ch++; if (ch > 16) ch = 1; }
+    x += `    <score-part id="${id}">\n      <part-name>${escapeXml(partDisplayName(p))}</part-name>\n      <part-abbreviation>${escapeXml(inst.abbr + (p.num ? ' ' + p.num : ''))}</part-abbreviation>\n`;
+    x += `      <score-instrument id="${id}-I1"><instrument-name>${escapeXml(inst.name)}</instrument-name><instrument-sound>${inst.sound}</instrument-sound></score-instrument>\n`;
+    x += `      <midi-instrument id="${id}-I1"><midi-channel>${channel}</midi-channel><midi-program>${inst.gm}</midi-program>${inst.perc ? '<midi-unpitched>39</midi-unpitched>' : ''}<volume>80</volume><pan>0</pan></midi-instrument>\n    </score-part>\n`;
+  });
+  x += `  </part-list>\n`;
+
+  doc.parts.forEach((p, pi) => {
+    const inst = INST[p.instId] || INST.unknown, id = `P${pi + 1}`;
+    const tr = partTrans(p);
+    x += `  <part id="${id}">\n`;
+    const curClef = [...p.clefs];
+    let number = doc.pickup ? 0 : 1;
+    p.measures.forEach((m, mi) => {
+      const implicit = mi === 0 && doc.pickup;
+      x += `    <measure number="${number}"${implicit ? ' implicit="yes"' : ''}>\n`;
+      number++;
+      if (m.repeatStart) x += `      <barline location="left"><bar-style>heavy-light</bar-style><repeat direction="forward"/></barline>\n`;
+      let attrs = '';
+      if (mi === 0) {
+        attrs += `        <divisions>${DIV}</divisions>\n        <key><fifths>${inst.perc ? 0 : p.fifths}</fifths><mode>major</mode></key>\n`;
+        const sym = doc.time.symbol ? ` symbol="${doc.time.symbol}"` : '';
+        attrs += `        <time${sym}><beats>${doc.time.beats}</beats><beat-type>${doc.time.beatType}</beat-type></time>\n`;
+        if (p.staffCount > 1) attrs += `        <staves>${p.staffCount}</staves>\n`;
+        p.clefs.forEach((c, k) => { const [sg, ln] = CLEF_XML[c] || CLEF_XML.G2; attrs += `        <clef${p.staffCount > 1 ? ` number="${k + 1}"` : ''}><sign>${sg}</sign><line>${ln}</line></clef>\n`; });
+        if (!doc.concert && (tr[0] || tr[1] || tr[2])) attrs += `        <transpose><diatonic>${tr[0]}</diatonic><chromatic>${tr[1]}</chromatic>${tr[2] ? `<octave-change>${tr[2]}</octave-change>` : ''}</transpose>\n`;
+      } else {
+        (m.clefs || []).forEach((c, k) => {
+          if (c && c !== curClef[k] && !(inst.perc)) { const [sg, ln] = CLEF_XML[c]; attrs += `        <clef${p.staffCount > 1 ? ` number="${k + 1}"` : ''}><sign>${sg}</sign><line>${ln}</line></clef>\n`; curClef[k] = c; }
+        });
+      }
+      if (m.multiRest > 1) attrs += `        <measure-style><multiple-rest>${m.multiRest}</multiple-rest></measure-style>\n`;
+      if (attrs) x += `      <attributes>\n${attrs}      </attributes>\n`;
+      if (mi === 0 && pi === 0 && doc.tempo) x += `      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${doc.tempo}</per-minute></metronome></direction-type><sound tempo="${doc.tempo}"/></direction>\n`;
+
+      const staffLens = [];
+      const sums = m.staffEvents.map(evs => (evs.some(e => e.kind !== 'multirest') ? measureSum(evs, E) : 0));
+      const target = implicit ? Math.max(...sums) : Math.max(E, ...sums);
+      m.staffEvents.forEach((evsRaw, k) => {
+        const staffTag = p.staffCount > 1 ? `<staff>${k + 1}</staff>` : '';
+        const voice = p.staffCount > 1 ? k * 4 + 1 : 1;
+        const clef = curClef[k] || p.clefs[k];
+        const evs = evsRaw.filter(e => e.kind !== 'multirest');
+        if (k > 0) x += `      <backup><duration>${staffLens[k - 1]}</duration></backup>\n`;
+        let total = 0;
+        if (!evs.length || (evs.length === 1 && evs[0].kind === 'rest' && evs[0].type === 'whole')) {
+          if (implicit) { if (target > 0) { for (const r of restTypesFor(target)) x += `      <note><rest/><duration>${r.div}</duration><voice>${voice}</voice><type>${r.type}</type>${staffTag}</note>\n`; } }
+          else { x += `      <note><rest measure="yes"/><duration>${E}</duration><voice>${voice}</voice>${staffTag}</note>\n`; if (target > E) x += `      <forward><duration>${target - E}</duration><voice>${voice}</voice>${staffTag}</forward>\n`; }
+          staffLens.push(target); return;
+        }
+        const accState = {};
+        const notes = evs;
+        notes.forEach((e, ei) => {
+          const d = Math.round(eventDiv(e));
+          const dotXml = e.dots ? '<dot/>'.repeat(e.dots) : '';
+          if (e.kind === 'rest') {
+            x += `      <note><rest/><duration>${d}</duration><voice>${voice}</voice><type>${e.type}</type>${dotXml}${staffTag}</note>\n`;
+            total += d; return;
+          }
+          const heads = [...e.heads].sort((a, b) => a.pos - b.pos);
+          // beams
+          let beamXml = '';
+          if (e.beams > 0 && !e.hollow) {
+            const prev = notes[ei - 1], next = notes[ei + 1];
+            for (let L = 1; L <= e.beams; L++) {
+              const pB = prev && prev.kind === 'note' && prev.beamNext && prev.beams >= L;
+              const nB = e.beamNext && next && next.kind === 'note' && next.beams >= L;
+              let v = null;
+              if (pB && nB) v = 'continue'; else if (pB) v = 'end'; else if (nB) v = 'begin';
+              else if (L > 1 && ((prev && prev.beamNext) || e.beamNext)) v = e.beamNext ? 'forward hook' : 'backward hook';
+              if (v) beamXml += `<beam number="${L}">${v}</beam>`;
+            }
+          }
+          heads.forEach((h, hi) => {
+            const { step, octave } = pitchOf(h.pos, clef);
+            const key = step + octave;
+            let alter;
+            if (h.acc) { alter = h.acc === 'sharp' ? 1 : h.acc === 'flat' ? -1 : 0; accState[key] = alter; }
+            else alter = key in accState ? accState[key] : keyAlter(step, p.fifths);
+            const accXml = h.acc ? `<accidental>${h.acc}</accidental>` : '';
+            const stemXml = e.stem && e.type !== 'whole' ? `<stem>${e.stem.dir}</stem>` : '';
+            const pitchXml = inst.perc
+              ? `<unpitched><display-step>${step}</display-step><display-octave>${octave}</display-octave></unpitched>`
+              : `<pitch><step>${step}</step>${alter ? `<alter>${alter}</alter>` : ''}<octave>${octave}</octave></pitch>`;
+            x += `      <note>${hi ? '<chord/>' : ''}${pitchXml}<duration>${d}</duration><instrument id="${id}-I1"/><voice>${voice}</voice><type>${e.type}</type>${dotXml}${accXml}${stemXml}${staffTag}${hi ? '' : beamXml}</note>\n`;
+          });
+          total += d;
+        });
+        if (total < target) {
+          for (const r of restTypesFor(target - total)) x += `      <note><rest/><duration>${r.div}</duration><voice>${voice}</voice><type>${r.type}</type>${staffTag}</note>\n`;
+          total = target;
+        }
+        staffLens.push(total);
+      });
+      const last = mi === p.measures.length - 1;
+      if (m.repeatEnd) x += `      <barline location="right"><bar-style>light-heavy</bar-style><repeat direction="backward"/></barline>\n`;
+      else if (last || m.final) x += `      <barline location="right"><bar-style>light-heavy</bar-style></barline>\n`;
+      x += `    </measure>\n`;
+    });
+    x += `  </part>\n`;
+  });
+  x += `</score-partwise>\n`;
+  return x;
+}
+
+/* ====================================================================
+   ZIP (store) writer for .mxl and bulk downloads
+   ==================================================================== */
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) { c ^= bytes[i]; for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1)); }
+  return (c ^ 0xffffffff) >>> 0;
+}
+function buildZipBlob(entries) {
+  const enc = new TextEncoder(); const local = [], central = []; let offset = 0;
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  for (const e of entries) {
+    const nameB = enc.encode(e.name), dataB = typeof e.data === 'string' ? enc.encode(e.data) : e.data;
+    const crc = crc32(dataB), sz = dataB.length, nl = nameB.length;
+    const lh = new Uint8Array(30 + nl), l = new DataView(lh.buffer);
+    l.setUint32(0, 0x04034b50, true); l.setUint16(4, 20, true); l.setUint16(6, 0x0800, true); l.setUint16(8, 0, true);
+    l.setUint16(10, dosTime, true); l.setUint16(12, dosDate, true); l.setUint32(14, crc, true); l.setUint32(18, sz, true); l.setUint32(22, sz, true); l.setUint16(26, nl, true);
+    lh.set(nameB, 30); local.push(lh, dataB);
+    const chd = new Uint8Array(46 + nl), c = new DataView(chd.buffer);
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true);
+    c.setUint16(12, dosTime, true); c.setUint16(14, dosDate, true); c.setUint32(16, crc, true); c.setUint32(20, sz, true); c.setUint32(24, sz, true); c.setUint16(28, nl, true); c.setUint32(42, offset, true);
+    chd.set(nameB, 46); central.push(chd);
+    offset += lh.length + sz;
+  }
+  const cSize = central.reduce((a, b) => a + b.length, 0);
+  const eocd = new Uint8Array(22), d = new DataView(eocd.buffer);
+  d.setUint32(0, 0x06054b50, true); d.setUint16(8, entries.length, true); d.setUint16(10, entries.length, true); d.setUint32(12, cSize, true); d.setUint32(16, offset, true);
+  return new Blob([...local, ...central, eocd], { type: 'application/zip' });
+}
+function buildMxl(doc) {
+  const xml = buildMusicXML(doc);
+  return buildZipBlob([
+    { name: 'mimetype', data: 'application/vnd.recordare.musicxml' },
+    { name: 'META-INF/container.xml', data: `<?xml version="1.0" encoding="UTF-8"?>\n<container><rootfiles><rootfile full-path="score.musicxml" media-type="application/vnd.recordare.musicxml+xml"/></rootfiles></container>` },
+    { name: 'score.musicxml', data: xml }
+  ]);
+}
+const safeBase = name => name.replace(/\.[^.]+$/, '').replace(/[^\w\- .()]+/g, '_').trim() || 'score';
+
+/* ====================================================================
+   File processing
+   ==================================================================== */
+const TARGET_IL = 22, MAX_PIXELS = 11e6;
+function setProgress(text, frac) {
+  const sec = document.getElementById('progressSection');
+  if (frac == null) { sec.classList.add('hidden'); return; }
+  sec.classList.remove('hidden');
+  document.getElementById('progressText').textContent = text;
+  document.getElementById('progressPct').textContent = Math.round(frac * 100) + '%';
+  document.getElementById('progressBar').style.width = Math.round(frac * 100) + '%';
+}
+const nextFrame = () => new Promise(r => setTimeout(r, 0));
+
+async function renderPdfPage(page, scale) {
+  const vp = page.getViewport({ scale });
+  const c = document.createElement('canvas'); c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  await page.render({ canvasContext: ctx, viewport: vp, background: 'white' }).promise;
+  return { canvas: c, vp };
+}
+function quickInterline(canvas) {
+  const g = grayFromCanvas(canvas); const b = binarize(g, otsu(g));
+  return estimateSpacing(b, canvas.width, canvas.height).iL;
+}
+
+async function processPdf(file, onPage) {
+  const buf = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  const pages = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const base = page.getViewport({ scale: 1 });
+    let scale = Math.min(2, Math.sqrt(MAX_PIXELS / (base.width * base.height)));
+    let { canvas, vp } = await renderPdfPage(page, scale);
+    const iL = quickInterline(canvas);
+    if (iL >= 4) {
+      let s2 = scale * TARGET_IL / iL;
+      s2 = Math.min(s2, Math.sqrt(MAX_PIXELS / (base.width * base.height)), 6);
+      s2 = Math.max(s2, 1);
+      if (Math.abs(s2 - scale) / scale > 0.12) { scale = s2; ({ canvas, vp } = await renderPdfPage(page, scale)); }
+    }
+    const tc = await page.getTextContent();
+    const items = tc.items.filter(it => it.str && it.str.trim()).map(it => {
+      const tx = window.pdfjsLib.Util.transform(vp.transform, it.transform);
+      const fh = Math.hypot(tx[2], tx[3]);
+      return { str: it.str, x: tx[4], baseline: tx[5], y: tx[5] - fh, w: it.width * scale, h: fh };
+    });
+    await nextFrame();
+    const res = analyzePage(canvas, items);
+    res.textLines = groupTextLines(items);
+    delete res.canvas;
+    pages.push(res);
+    onPage(p, pdf.numPages);
+    await nextFrame();
+  }
+  return pages;
+}
+async function canvasFromImageFile(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('Could not read image')); im.src = url; });
+    return img;
+  } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+}
+function drawScaled(src, w, h, scale) {
+  const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(w * scale)); c.height = Math.max(1, Math.round(h * scale));
+  const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.imageSmoothingQuality = 'high'; ctx.drawImage(src, 0, 0, c.width, c.height); return c;
+}
+function analyzeImageSource(src, w, h, textItems) {
+  let scale = Math.min(1, Math.sqrt(MAX_PIXELS / (w * h)));
+  let c = drawScaled(src, w, h, scale);
+  const iL = quickInterline(c);
+  if (iL >= 4) {
+    let s2 = Math.min(scale * TARGET_IL / iL, Math.sqrt(MAX_PIXELS / (w * h)), 4);
+    if (Math.abs(s2 - scale) / scale > 0.12) { const f = s2 / scale; scale = s2; c = drawScaled(src, w, h, scale); textItems = (textItems || []).map(t => ({ ...t, x: t.x * f, y: t.y * f, baseline: t.baseline * f, w: t.w * f, h: t.h * f })); }
+  }
+  const res = analyzePage(c, textItems || []);
+  res.textLines = groupTextLines(textItems || []);
+  delete res.canvas;
+  return res;
+}
+
+const convertedItems = [];
+async function processDroppedFiles(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+  buildDigitTemplates();
+  for (let fi = 0; fi < files.length; fi++) {
+    const file = files[fi];
+    const ext = file.name.split('.').pop().toLowerCase();
+    const label = n => `Reading ${file.name}${n ? ' — ' + n : ''}`;
+    setProgress(label(''), fi / files.length);
+    await nextFrame();
+    try {
+      let pages;
+      if (ext === 'pdf') {
+        if (!window.pdfjsLib) throw new Error('The PDF library failed to load. Check your connection and reload.');
+        pages = await processPdf(file, (p, n) => setProgress(label(`page ${p} of ${n}`), (fi + p / n) / files.length));
+      } else if (['png', 'jpg', 'jpeg'].includes(ext)) {
+        const img = await canvasFromImageFile(file);
+        pages = [analyzeImageSource(img, img.naturalWidth, img.naturalHeight, [])];
+      } else throw new Error('Unsupported file type. Use PDF, PNG or JPG.');
+      const doc = assembleDocument(file.name, pages);
+      convertedItems.unshift(doc);
+    } catch (err) {
+      console.error(err);
+      convertedItems.unshift({ fileName: file.name, error: err.message || String(err) });
+    }
+    renderConvertedList();
+  }
+  setProgress(null, null);
+  showToast(`Processed ${files.length} file(s)`);
+}
+
+/* ====================================================================
+   UI
+   ==================================================================== */
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  document.getElementById('toastText').textContent = msg;
+  el.classList.remove('hidden'); el.classList.add('flex');
+  clearTimeout(el._t); el._t = setTimeout(() => { el.classList.add('hidden'); el.classList.remove('flex'); }, 2800);
+}
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+function concertFifths(written, chromatic) {
+  let d = ((chromatic * 7) % 12 + 12) % 12; if (d > 6) d -= 12;
+  let f = written + d; if (f > 7) f -= 12; if (f < -7) f += 12; return f;
+}
+const instOptions = sel => INSTRUMENTS.filter(i => i.id !== 'unknown' || sel === 'unknown').map(i => `<option value="${i.id}"${i.id === sel ? ' selected' : ''}>${escapeXml(i.id === 'unknown' ? 'Unknown (choose…)' : i.name)}</option>`).join('');
+const keyOptions = sel => Array.from({ length: 15 }, (_, k) => k - 7).map(f => `<option value="${f}"${f === sel ? ' selected' : ''}>${escapeXml(keyName(f))}</option>`).join('');
+const TIME_CHOICES = ['2/2', '2/4', '3/4', '4/4', '5/4', '6/4', '3/8', '6/8', '9/8', '12/8'];
+
+function renderConvertedList() {
+  const section = document.getElementById('resultsSection');
+  const container = document.getElementById('convertedCards');
+  const ok = convertedItems.filter(d => !d.error);
+  document.getElementById('btnDownloadAllZip').classList.toggle('hidden', ok.length < 2);
+  section.classList.toggle('hidden', convertedItems.length === 0);
+  container.innerHTML = '';
+  convertedItems.forEach((doc, idx) => {
+    const card = document.createElement('div');
+    card.className = 'bg-slate-900/90 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-lg';
+    if (doc.error) {
+      card.innerHTML = `<div class="flex justify-between gap-3"><span class="font-bold text-white text-sm break-all">${escapeXml(doc.fileName)}</span><button data-act="remove" data-idx="${idx}" class="text-xs text-slate-400 hover:text-rose-400">Remove</button></div><p class="text-xs text-rose-300">Couldn't convert: ${escapeXml(doc.error)}</p>`;
+      container.appendChild(card); return;
+    }
+    validateDoc(doc);
+    const timeVal = `${doc.time.beats}/${doc.time.beatType}`;
+    const timeOpts = [...new Set([timeVal, ...TIME_CHOICES])].map(t => `<option value="${t}"${t === timeVal ? ' selected' : ''}>${t}${t === timeVal ? (doc.timeSource === 'inferred' ? ' (inferred)' : ' (detected)') : ''}</option>`).join('');
+    const totalMeasures = doc.parts[0]?.measures.length || 0;
+    const parts = doc.parts.map((p, pi) => {
+      const inst = INST[p.instId] || INST.unknown;
+      const tr = partTrans(p);
+      const cf = concertFifths(p.fifths, tr[1]);
+      const transposing = tr[1] !== 0 && !doc.concert;
+      const notes = p.measures.reduce((a, m) => a + m.staffEvents.reduce((b, e) => b + e.filter(x => x.kind === 'note').length, 0), 0);
+      return `
+        <div class="bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2.5 text-xs space-y-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <select data-act="inst" data-idx="${idx}" data-part="${pi}" aria-label="Instrument">${instOptions(p.instId)}</select>
+            <input type="text" data-act="num" data-idx="${idx}" data-part="${pi}" value="${escapeXml(p.num || '')}" placeholder="#" class="w-10 text-center" aria-label="Chair number" />
+            <select data-act="key" data-idx="${idx}" data-part="${pi}" aria-label="Written key">${keyOptions(p.fifths)}</select>
+            <span class="text-slate-400 ml-auto">${p.measures.length} bars · ${notes} notes${p.staffCount > 1 ? ' · grand staff' : ''}</span>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <span class="px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-300 border border-blue-500/30">${p.clefs.map(c => CLEF_LABEL[c]).join(' + ')} clef</span>
+            <span class="px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">${transposing ? `Written ${MAJOR[p.fifths]} → sounds ${MAJOR[cf]} (${tr[1] > 0 ? '+' : ''}${tr[1] + 12 * tr[2]} semitones)` : (tr[2] && !doc.concert ? `Octave transposition (${tr[2] > 0 ? '+' : ''}${tr[2]} oct)` : 'Concert pitch')}</span>
+            <span class="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-mono text-[11px]">${inst.sound}</span>
+            ${p.flagged ? `<span class="px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">${p.flagged} bar(s) to check</span>` : `<span class="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300/80 border border-emerald-500/20">all bars add up</span>`}
+          </div>
+        </div>`;
+    }).join('');
+    card.innerHTML = `
+      <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+        <div class="space-y-1.5 min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <input type="text" data-act="title" data-idx="${idx}" value="${escapeXml(doc.title)}" class="font-bold text-sm min-w-0 flex-1 sm:max-w-sm" aria-label="Title" />
+            <span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">${escapeXml(doc.fileName)} · ${doc.pages} page(s) · ${doc.parts.length} part(s) · ${totalMeasures} bars</span>
+          </div>
+          <div class="flex flex-wrap items-center gap-3 text-xs text-slate-300">
+            <label class="flex items-center gap-1.5">Time <select data-act="time" data-idx="${idx}">${timeOpts}</select></label>
+            <label class="flex items-center gap-1.5">Tempo ♩= <input type="number" min="20" max="320" data-act="tempo" data-idx="${idx}" value="${doc.tempo || ''}" placeholder="auto" class="w-16" /></label>
+            <label class="flex items-center gap-1.5" title="Tick if the PDF is a score in C: transposing instruments are already written at sounding pitch"><input type="checkbox" data-act="concert" data-idx="${idx}" ${doc.concert ? 'checked' : ''} /> Score is in concert pitch</label>
+            ${doc.pickup ? '<span class="text-slate-400">Pickup bar detected</span>' : ''}
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button type="button" data-act="preview" data-idx="${idx}" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition">Preview</button>
+          <button type="button" data-act="xml" data-idx="${idx}" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition">Download .musicxml</button>
+          <button type="button" data-act="mxl" data-idx="${idx}" class="px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-sm transition">.mxl</button>
+          <button type="button" data-act="remove" data-idx="${idx}" class="px-2 py-1.5 text-xs text-slate-500 hover:text-rose-400" aria-label="Remove">✕</button>
+        </div>
+      </div>
+      ${doc.warnings.length || doc.flagged ? `<ul class="text-[11px] text-amber-200/90 space-y-0.5 list-disc pl-4">${doc.warnings.map(w => `<li>${escapeXml(w)}</li>`).join('')}${doc.flagged ? `<li>${doc.flagged} bar(s) don't match ${timeVal}. These usually contain tuplets, grace notes, two voices or a misread rhythm. They're outlined red in the detection overlay; fix them in Flat after import.</li>` : ''}</ul>` : ''}
+      <div class="space-y-2">${parts}</div>`;
+    container.appendChild(card);
+  });
+}
+
+function onCardEvent(e) {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const doc = convertedItems[parseInt(el.dataset.idx, 10)]; if (!doc) return;
+  const act = el.dataset.act, p = el.dataset.part != null ? doc.parts[parseInt(el.dataset.part, 10)] : null;
+  if (e.type === 'click') {
+    if (act === 'xml') { triggerDownload(new Blob([buildMusicXML(doc)], { type: 'application/vnd.recordare.musicxml+xml' }), `${safeBase(doc.fileName)}.musicxml`); showToast('Downloaded .musicxml'); }
+    else if (act === 'mxl') { triggerDownload(buildMxl(doc), `${safeBase(doc.fileName)}.mxl`); showToast('Downloaded .mxl'); }
+    else if (act === 'preview') openPreview(doc);
+    else if (act === 'remove') { convertedItems.splice(parseInt(el.dataset.idx, 10), 1); renderConvertedList(); }
+    return;
+  }
+  if (e.type !== 'change') return;
+  if (act === 'inst' && p) { p.instId = el.value; const inst = INST[p.instId]; if (!p.clefsDetected) p.clefsDetected = [...p.clefs]; if (p.staffCount === 1 && !p.measures.some(m => m.clefs && m.clefs[0])) p.clefs = [inst.clef]; }
+  else if (act === 'num' && p) p.num = el.value.trim() || null;
+  else if (act === 'key' && p) p.fifths = parseInt(el.value, 10);
+  else if (act === 'time') { const [b, t] = el.value.split('/').map(Number); doc.time = { beats: b, beatType: t, symbol: null }; doc.timeSource = 'manual'; }
+  else if (act === 'tempo') doc.tempo = parseInt(el.value, 10) || null;
+  else if (act === 'concert') doc.concert = el.checked;
+  else if (act === 'title') doc.title = el.value;
+  renderConvertedList();
+}
+
+/* ---------- preview ---------- */
+let osmdPromise = null, osmd = null, currentPreview = null;
+function loadOSMD() {
+  if (window.opensheetmusicdisplay) return Promise.resolve();
+  if (!osmdPromise) osmdPromise = new Promise((res, rej) => { const s = document.createElement('script'); s.src = OSMD_URL; s.onload = res; s.onerror = () => { osmdPromise = null; rej(new Error('Could not load the notation renderer.')); }; document.head.appendChild(s); });
+  return osmdPromise;
+}
+function setPreviewTab(which) {
+  document.getElementById('previewEngraved').classList.toggle('hidden', which !== 'engraved');
+  document.getElementById('previewOverlay').classList.toggle('hidden', which !== 'overlay');
+  document.getElementById('tabEngraved').classList.toggle('tab-active', which === 'engraved');
+  document.getElementById('tabOverlay').classList.toggle('tab-active', which === 'overlay');
+}
+async function openPreview(doc) {
+  currentPreview = doc;
+  stopPlayback();
+  const xml = buildMusicXML(doc);
+  document.getElementById('previewTitle').textContent = doc.title;
+  document.getElementById('previewSubtitle').textContent = `${doc.parts.map(partDisplayName).join(' · ')} — ${doc.time.beats}/${doc.time.beatType}${doc.tempo ? ' · ♩=' + doc.tempo : ''}`;
+  const modal = document.getElementById('previewModal'); modal.classList.remove('hidden'); modal.classList.add('flex');
+  // overlay pages with flagged measures outlined
+  const host = document.getElementById('overlayHost'); host.innerHTML = '';
+  doc.overlays.forEach((ov, pi) => {
+    const wrap = document.createElement('div'); wrap.className = 'relative bg-white shadow rounded overflow-hidden';
+    wrap.innerHTML = `<img src="${ov.url}" alt="Detection overlay for page ${pi + 1}" class="w-full block" /><div class="absolute left-2 top-2 text-[11px] bg-slate-900/80 text-white px-2 py-0.5 rounded">Page ${pi + 1}</div>`;
+    const img = wrap.querySelector('img');
+    img.onload = () => {
+      const f = img.clientWidth / img.naturalWidth * ov.scale;
+      for (const p of doc.parts) for (const m of p.measures) if (m.flag && m.page === pi) for (const r of m.staffRefs) if (r) {
+        const b = document.createElement('div');
+        b.style.cssText = `position:absolute;left:${r.x0 * f}px;top:${(r.top - 6) * f}px;width:${Math.max(4, (r.x1 - r.x0) * f)}px;height:${(r.bottom - r.top + 12) * f}px;border:2px solid #e11d48;border-radius:3px;pointer-events:none`;
+        b.title = m.flag === 'over' ? 'More beats than the time signature' : 'Fewer beats than the time signature';
+        wrap.appendChild(b);
+      }
+    };
+    host.appendChild(wrap);
+  });
+  setPreviewTab('engraved');
+  const eng = document.getElementById('previewEngraved');
+  eng.innerHTML = '<p class="p-4 text-slate-500 text-sm">Rendering…</p>';
+  try {
+    await loadOSMD();
+    eng.innerHTML = '';
+    osmd = new window.opensheetmusicdisplay.OpenSheetMusicDisplay(eng, { autoResize: true, backend: 'svg', drawTitle: true, drawingParameters: 'compacttight' });
+    await osmd.load(xml);
+    if (currentPreview !== doc) return;
+    osmd.render();
+  } catch (err) {
+    eng.innerHTML = `<p class="p-4 text-slate-600 text-sm">Couldn't render the engraved preview (${escapeXml(err.message || err)}). The detection overlay tab still works, and the file downloads are unaffected.</p>`;
+  }
+}
+
+/* ---------- playback (sounding pitch, all parts) ---------- */
+let audioCtx = null, playingNodes = [], playTimer = null;
+function stopPlayback() {
+  playingNodes.forEach(n => { try { n.stop(); } catch (_) {} }); playingNodes = [];
+  clearTimeout(playTimer);
+  const b = document.getElementById('btnPreviewPlay'); if (b) b.textContent = '▶ Play';
+}
+function playDoc(doc) {
+  if (playingNodes.length) { stopPlayback(); return; }
+  validateDoc(doc);
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const E = doc.time.beats * (192 / doc.time.beatType);
+  const secPerDiv = 60 / (doc.tempo || 100) / DIV;
+  const t0 = audioCtx.currentTime + 0.1;
+  const master = audioCtx.createGain(); master.gain.value = 0.5 / Math.sqrt(Math.max(1, doc.parts.length)); master.connect(audioCtx.destination);
+  let end = 0;
+  for (const p of doc.parts) {
+    const inst = INST[p.instId] || INST.unknown, tr = partTrans(p);
+    const wave = { brass: 'sawtooth', reed: 'square', strings: 'sawtooth', flute: 'sine', mallet: 'triangle', keys: 'triangle', pluck: 'triangle', perc: 'square' }[inst.fam] || 'triangle';
+    let mStart = 0;
+    p.measures.forEach((m, mi) => {
+      const firstLen = mi === 0 && doc.pickup ? measureSum(m.staffEvents[0], E) : E;
+      m.staffEvents.forEach((evs, k) => {
+        const clef = (m.clefs && m.clefs[k]) || p.clefs[k];
+        let t = mStart; const accState = {};
+        const real = evs.filter(e => e.kind !== 'multirest');
+        if (real.length === 1 && real[0].kind === 'rest' && real[0].type === 'whole') return;
+        for (const e of real) {
+          const d = eventDiv(e);
+          if (e.kind === 'note') for (const h of e.heads) {
+            const { step, octave } = pitchOf(h.pos, clef);
+            const key = step + octave;
+            let alter; if (h.acc) { alter = h.acc === 'sharp' ? 1 : h.acc === 'flat' ? -1 : 0; accState[key] = alter; } else alter = key in accState ? accState[key] : keyAlter(step, p.fifths);
+            let midi = (octave + 1) * 12 + SEMI[step] + alter;
+            if (!doc.concert) midi += tr[1] + 12 * tr[2];
+            const st = t0 + t * secPerDiv, du = Math.max(0.06, d * secPerDiv * 0.92);
+            const osc = audioCtx.createOscillator(), g = audioCtx.createGain(), f = audioCtx.createBiquadFilter();
+            f.type = 'lowpass'; f.frequency.value = inst.perc ? 3000 : 2400;
+            osc.type = wave; osc.frequency.value = inst.perc ? 180 : 440 * Math.pow(2, (midi - 69) / 12);
+            g.gain.setValueAtTime(0.0001, st); g.gain.linearRampToValueAtTime(0.25, st + 0.015);
+            g.gain.setTargetAtTime(inst.fam === 'pluck' || inst.fam === 'mallet' || inst.fam === 'keys' || inst.perc ? 0.0001 : 0.17, st + 0.03, inst.perc ? 0.03 : 0.12);
+            g.gain.setTargetAtTime(0.0001, st + du, 0.03);
+            osc.connect(f); f.connect(g); g.connect(master); osc.start(st); osc.stop(st + du + 0.25);
+            playingNodes.push(osc);
+          }
+          t += d;
+        }
+      });
+      mStart += firstLen;
+    });
+    end = Math.max(end, mStart);
+  }
+  document.getElementById('btnPreviewPlay').textContent = '■ Stop';
+  playTimer = setTimeout(stopPlayback, (end * secPerDiv + 1) * 1000);
+}
+
+/* ---------- sample page: a synthetic engraved part, run through the real recognizer ---------- */
+function drawSamplePage() {
+  const iL = 20, W = 1700, H = 1100;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.fillStyle = '#000'; g.strokeStyle = '#000';
+  const text = [];
+  const addText = (str, x, y, size, align) => { g.font = `${size}px Georgia, serif`; g.textAlign = align || 'left'; g.fillText(str, x, y); const w = g.measureText(str).width; text.push({ str, x: align === 'center' ? x - w / 2 : align === 'right' ? x - w : x, baseline: y, y: y - size, w, h: size }); g.textAlign = 'left'; };
+  addText('Sample March', W / 2, 90, 44, 'center');
+  addText('Trumpet in B♭ 1', 90, 150, 24);
+  addText('Arr. Demo', W - 90, 150, 22, 'right');
+  addText('♩ = 112', 160, 205, 22);
+  const left = 90, right = W - 90;
+  const sysTops = [260, 620];
+  const notehead = (x, y, hollow) => {
+    g.save(); g.translate(x, y); g.rotate(-0.35); g.beginPath(); g.ellipse(0, 0, 0.66 * iL, 0.44 * iL, 0, 0, Math.PI * 2); g.fill();
+    if (hollow) { g.fillStyle = '#fff'; g.beginPath(); g.ellipse(0, 0, 0.45 * iL, 0.2 * iL, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#000'; }
+    g.restore();
+  };
+  const sharp = (x, y) => { g.fillRect(x, y - 1.35 * iL, 2.4, 2.6 * iL); g.fillRect(x + 0.45 * iL, y - 1.25 * iL - 0.15 * iL, 2.4, 2.6 * iL);
+    for (const dy of [-0.45, 0.45]) { g.beginPath(); g.moveTo(x - 0.15 * iL, y + dy * iL + 0.12 * iL); g.lineTo(x + 0.75 * iL, y + dy * iL - 0.12 * iL); g.lineTo(x + 0.75 * iL, y + dy * iL + 0.28 * iL); g.lineTo(x - 0.15 * iL, y + dy * iL + 0.52 * iL); g.closePath(); g.fill(); } };
+  const flat = (x, y) => { g.fillRect(x, y - 1.9 * iL, 2.4, 2.4 * iL); g.lineWidth = 0.17 * iL; g.beginPath(); g.moveTo(x + 1, y + 0.45 * iL); g.bezierCurveTo(x + 0.9 * iL, y - 0.1 * iL, x + 0.8 * iL, y - 0.75 * iL, x + 1, y - 0.15 * iL); g.stroke(); };
+  const natural = (x, y) => { g.fillRect(x, y - 1.4 * iL, 2.4, 1.95 * iL); g.fillRect(x + 0.5 * iL, y - 0.5 * iL, 2.4, 1.95 * iL); g.fillRect(x, y - 0.55 * iL, 0.55 * iL, 0.3 * iL); g.fillRect(x, y + 0.25 * iL, 0.55 * iL, 0.3 * iL); };
+  const trebleClef = (x, top) => { g.lineWidth = 0.22 * iL; g.beginPath(); g.moveTo(x + 0.9 * iL, top + 5.6 * iL); g.lineTo(x + 0.9 * iL, top - 1.4 * iL);
+    g.bezierCurveTo(x + 2.2 * iL, top - 0.2 * iL, x - 0.4 * iL, top + 1.5 * iL, x, top + 2.8 * iL); g.bezierCurveTo(x + 0.4 * iL, top + 4.2 * iL, x + 2.2 * iL, top + 3.6 * iL, x + 1.9 * iL, top + 2.6 * iL);
+    g.bezierCurveTo(x + 1.6 * iL, top + 1.8 * iL, x + 0.5 * iL, top + 2.2 * iL, x + 0.9 * iL, top + 3.0 * iL); g.stroke(); g.beginPath(); g.arc(x + 0.5 * iL, top + 5.4 * iL, 0.35 * iL, 0, Math.PI * 2); g.fill(); };
+  const quarterRest = (x, mid) => { g.lineWidth = 0.3 * iL; g.beginPath(); g.moveTo(x, mid - 1.4 * iL); g.lineTo(x + 0.6 * iL, mid - 0.5 * iL); g.lineTo(x, mid + 0.2 * iL); g.lineTo(x + 0.6 * iL, mid + 0.9 * iL); g.lineTo(x + 0.1 * iL, mid + 1.3 * iL); g.stroke(); };
+  const yOf = (top, pos) => top + 4 * iL - pos * iL / 2;
+  // Music: [pos, type, opts] per measure. Treble: pos 0 = E4 (bottom line).
+  const sys1 = [
+    [[4, 'q'], [5, 'q'], [6, 'q'], [7, 'q']],
+    [[8, 'h'], [6, 'q', { dot: false }], [4, 'q']],
+    [[2, 'e'], [3, 'e'], [4, 'e'], [5, 'e'], [6, 'q', { acc: 'natural' }], ['rest', 'q']],
+    [[-2, 'h', { dot: true }], [3, 'q', { acc: 'flat' }]]
+  ];
+  const sys2 = [
+    [[9, 'q', { dot: true }], [8, 'e'], [7, 'q'], [6, 'q']],
+    [[4, 'e'], [6, 'e'], [8, 'e'], [10, 'e'], [8, 'h']],
+    [['rest', 'h'], [4, 'q'], [0, 'q', { acc: 'sharp' }]],
+    [[2, 'w']]
+  ];
+  sysTops.forEach((top, si) => {
+    // clef, key (2 sharps: F5, C5), time sig on first system
+    trebleClef(left + 0.6 * iL, top);
+    sharp(left + 3.2 * iL, yOf(top, 8)); sharp(left + 4.3 * iL, yOf(top, 5));
+    let x = left + 5.6 * iL;
+    if (si === 0) { g.font = `bold ${2.25 * iL}px "Times New Roman", serif`; g.textBaseline = 'alphabetic'; g.fillText('4', x, top + 1.95 * iL); g.fillText('4', x, top + 3.95 * iL); x += 1.8 * iL; }
+    const measures = si === 0 ? sys1 : sys2;
+    const mw = (right - x - iL) / measures.length;
+    measures.forEach((meas, mi) => {
+      const mx0 = x + mi * mw + 1.4 * iL;
+      const slots = meas.length;
+      const pts = [];
+      meas.forEach(([pos, type, opt = {}], k) => {
+        const nx = mx0 + k * (mw - 2.4 * iL) / slots;
+        if (pos === 'rest') {
+          if (type === 'q') quarterRest(nx, top + 2 * iL);
+          if (type === 'h') g.fillRect(nx - 0.6 * iL, top + 1.5 * iL, 1.2 * iL, 0.5 * iL);
+          return;
+        }
+        const y = yOf(top, pos);
+        if (opt.acc === 'sharp') sharp(nx - 1.7 * iL, y); if (opt.acc === 'flat') flat(nx - 1.5 * iL, y); if (opt.acc === 'natural') natural(nx - 1.5 * iL, y);
+        if (type === 'w') { g.save(); g.translate(nx, y); g.beginPath(); g.ellipse(0, 0, 0.85 * iL, 0.5 * iL, 0, 0, Math.PI * 2); g.fill(); g.fillStyle = '#fff'; g.rotate(-0.9); g.beginPath(); g.ellipse(0, 0, 0.42 * iL, 0.26 * iL, 0, 0, Math.PI * 2); g.fill(); g.restore(); }
+        else notehead(nx, y, type === 'h');
+        if (type !== 'w') {
+          const up = pos < 4;
+          const sx = up ? nx + 0.6 * iL : nx - 0.6 * iL;
+          const ey = up ? y - 3.5 * iL : y + 3.5 * iL;
+          if (type !== 'e') g.fillRect(sx - 1.2, Math.min(y, ey), 2.4, Math.abs(ey - y));
+          pts.push({ sx, ey, y, type, up });
+        }
+        if (opt.dot || (type === 'q' && opt.dot)) { g.beginPath(); g.arc(nx + 1.3 * iL, pos % 2 === 0 ? y - 0.5 * iL : y, 0.2 * iL, 0, Math.PI * 2); g.fill(); }
+        if (pos <= -2) for (let lp = -2; lp >= pos; lp -= 2) g.fillRect(nx - 1.0 * iL, yOf(top, lp) - 1.2, 2 * iL, 2.4);
+        if (pos >= 10) for (let lp = 10; lp <= pos; lp += 2) g.fillRect(nx - 1.0 * iL, yOf(top, lp) - 1.2, 2 * iL, 2.4);
+      });
+      // beam consecutive eighths in pairs; lone eighth gets a flag
+      const eighths = pts.filter(p => p.type === 'e');
+      for (let k = 0; k < eighths.length; k += 2) {
+        const a = eighths[k], b = eighths[k + 1];
+        if (b) {
+          const ey = a.up ? Math.min(a.ey, b.ey) : Math.max(a.ey, b.ey);
+          for (const q of [a, b]) g.fillRect(q.sx - 1.2, Math.min(q.y, ey), 2.4, Math.abs(ey - q.y));
+          g.fillRect(a.sx - 1.2, a.up ? ey : ey - 0.5 * iL, b.sx - a.sx + 2.4, 0.5 * iL);
+        } else {
+          g.fillRect(a.sx - 1.2, Math.min(a.y, a.ey), 2.4, Math.abs(a.ey - a.y));
+          g.lineWidth = 0.3 * iL; g.beginPath(); g.moveTo(a.sx, a.ey); g.quadraticCurveTo(a.sx + 1.1 * iL, a.ey + (a.up ? 1.2 : -1.2) * iL, a.sx + 0.7 * iL, a.ey + (a.up ? 2.6 : -2.6) * iL); g.stroke();
+        }
+      }
+      // barline
+      const bx = x + (mi + 1) * mw;
+      if (si === 1 && mi === measures.length - 1) { g.fillRect(bx - 0.9 * iL, top, 2, 4 * iL); g.fillRect(bx - 0.5 * iL, top, 0.5 * iL, 4 * iL); }
+      else g.fillRect(bx - 1, top, 2, 4 * iL);
+    });
+    // staff lines on top (like engraved output)
+    for (let l = 0; l < 5; l++) g.fillRect(left, top + l * iL - 1, (si === 1 ? x + measures.length * (right - x - iL) / measures.length : x + measures.length * mw) - left, 2.2);
+    g.fillRect(left, top, 2, 4 * iL);
+  });
+  return { canvas: c, text };
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const dropZone = document.getElementById('dropZone'), fileInput = document.getElementById('fileInput');
+  fileInput.addEventListener('change', e => { processDroppedFiles(e.target.files); e.target.value = ''; });
+  ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('drop-active'); }));
+  ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('drop-active'); }));
+  dropZone.addEventListener('drop', e => { if (e.dataTransfer?.files) processDroppedFiles(e.dataTransfer.files); });
+  const cards = document.getElementById('convertedCards');
+  cards.addEventListener('click', onCardEvent); cards.addEventListener('change', onCardEvent);
+
+  document.getElementById('btnTrySample').addEventListener('click', async () => {
+    setProgress('Recognizing sample page…', 0.3); await nextFrame();
+    try {
+      buildDigitTemplates();
+      const { canvas, text } = drawSamplePage();
+      const page = analyzeImageSource(canvas, canvas.width, canvas.height, text);
+      const doc = assembleDocument('Sample_March_Trumpet_1.png', [page]);
+      convertedItems.unshift(doc);
+      window.__lastDoc = doc;
+    } catch (err) { console.error(err); convertedItems.unshift({ fileName: 'Sample page', error: err.message }); }
+    setProgress(null, null); renderConvertedList(); showToast('Sample page recognized. Open Preview to compare.');
+  });
+  document.getElementById('btnDownloadAllZip').addEventListener('click', () => {
+    const used = new Set();
+    const entries = convertedItems.filter(d => !d.error).map(d => { let n = safeBase(d.fileName), k = 2; while (used.has(n)) n = `${safeBase(d.fileName)} (${k++})`; used.add(n); return { name: `${n}.musicxml`, data: buildMusicXML(d) }; });
+    triggerDownload(buildZipBlob(entries), 'flat_io_musicxml.zip');
+    showToast(`Downloaded ${entries.length} MusicXML files`);
+  });
+  document.getElementById('btnClearAll').addEventListener('click', () => { convertedItems.length = 0; renderConvertedList(); });
+  document.getElementById('btnClosePreview').addEventListener('click', () => { stopPlayback(); const m = document.getElementById('previewModal'); m.classList.add('hidden'); m.classList.remove('flex'); currentPreview = null; });
+  document.getElementById('btnPreviewPlay').addEventListener('click', () => currentPreview && playDoc(currentPreview));
+  document.getElementById('tabEngraved').addEventListener('click', () => setPreviewTab('engraved'));
+  document.getElementById('tabOverlay').addEventListener('click', () => setPreviewTab('overlay'));
+});
+</script>
+</body>
+</html>
