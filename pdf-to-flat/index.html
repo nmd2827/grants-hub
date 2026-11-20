@@ -56,6 +56,17 @@
       </div>
     </label>
 
+    <section class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 text-xs space-y-2">
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="font-semibold text-slate-200">Handwritten music</span>
+        <span id="hwStatus" class="text-slate-400">No handwriting model loaded.</span>
+        <label class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 cursor-pointer">Load model (.onnx)<input id="hwFile" type="file" accept=".onnx" class="hidden" /></label>
+        <label class="flex items-center gap-1.5 text-slate-300">Use it <select id="hwMode"><option value="auto">when the print rules fail</option><option value="always">always</option><option value="never">never</option></select></label>
+        <button id="hwForget" type="button" class="hidden text-slate-400 hover:text-rose-400">Remove model</button>
+      </div>
+      <p class="text-slate-500 leading-relaxed">Handwriting needs a trained model: run the Kaggle notebook in <code>pdf-to-flat/training</code>, then load <code>music_symbols.onnx</code> here. It runs on your device and is kept in this browser only.</p>
+    </section>
+
     <section id="progressSection" class="hidden bg-slate-900/80 border border-slate-800 rounded-2xl p-4">
       <div class="flex justify-between text-xs text-slate-300 mb-2"><span id="progressText">Working…</span><span id="progressPct">0%</span></div>
       <div class="h-2 rounded-full bg-slate-800 overflow-hidden"><div id="progressBar" class="h-full bg-blue-500 transition-all" style="width:0%"></div></div>
@@ -85,7 +96,7 @@
     </section>
 
     <p class="text-[11px] text-slate-500 leading-relaxed px-1">
-      Not read: handwritten music, more than two voices per staff, cross-staff beams, lyrics, articulations and ornaments, tempo changes, and 5-line drum-kit notehead shapes. Any recognizer makes mistakes on unusual engraving or poor scans, so check the flagged bars before you share the result.
+      Handwritten music needs a trained handwriting model (see above). Not read: more than two voices per staff, cross-staff beams, lyrics, articulations and ornaments, tempo changes, and 5-line drum-kit notehead shapes. Any recognizer makes mistakes on unusual engraving or poor scans, so check the flagged bars before you share the result.
     </p>
   </main>
 
@@ -809,7 +820,7 @@ function detectKeyChange(s, near, x0, lab, W, heads) {
   if (rest.some(a => a.t !== rest[0].t || a.t === 'natural')) return null;
   const n = rest.length; if (n > 7) return null;
   const fifths = !n ? 0 : rest[0].t === 'sharp' ? n : -n;
-  return { fifths, end: ch[ch.length - 1].c.maxX, comps: ch.map(a => a.c) };
+  return { fifths, end: ch[ch.length - 1].c.maxX, comps: ch.map(a => a.c), types: ch.map(a => a.t) };
 }
 
 function extractCurves(s, ctx, xA, xB, yA, yB) {
@@ -965,7 +976,7 @@ function analyzeStaffSymbols(s, ctx) {
     let x0 = b.x1 + 0.1 * iL;
     if (!s.oneLine) {
       const kc = detectKeyChange(s, near, x0, lab, W, preHeads);
-      if (kc) { changes.push({ kind: 'key', x: b.x1 + 0.1 * iL, fifths: kc.fifths, comps: kc.comps }); kc.comps.forEach(addEx); x0 = kc.end + 0.1 * iL; }
+      if (kc) { changes.push({ kind: 'key', x: b.x1 + 0.1 * iL, fifths: kc.fifths, comps: kc.comps, types: kc.types }); kc.comps.forEach(addEx); x0 = kc.end + 0.1 * iL; }
     }
     const tg = detectTimeSig(s, near, x0, lab, W, textItems, true);
     if (tg) { changes.push({ kind: 'time', x: b.x1 + 0.15 * iL, time: tg.time, comps: tg.comps }); tg.comps.forEach(addEx); }
@@ -1278,6 +1289,17 @@ function analyzeStaffSymbols(s, ctx) {
     for (let y = Math.max(0, Math.round(h.cy - ry)); y <= Math.min(H - 1, Math.round(h.cy + ry)); y++) for (let x = Math.max(0, Math.round(h.cx - rx)); x <= Math.min(W - 1, Math.round(h.cx + rx)); x++) ctx.thin[y * W + x] = 0;
   }
   const { arcs, wedges } = extractCurves(s, ctx, Math.max(0, xA - Math.round(1.5 * iL)), xB, yA, yB);
+  attachArcs(arcs, events, s, hdr.headerEnd);
+  for (const c of changes) events.push(c);
+  for (const d of dyns) events.push({ kind: 'dyn', x: d.x, word: d.word, y: d.y });
+  for (const w of wedges) { events.push({ kind: 'wedge', x: w.x0, wtype: w.type, y: w.y }); events.push({ kind: 'wedgeStop', x: w.x1, y: w.y }); }
+  events.sort((a, b) => a.x - b.x);
+  return { heads: validHeads, rests, accs, multis, events, arcs, wedges, dyns, tupletMarks, changes, graces: gEvents };
+}
+
+// match ties/slurs to the notes at their ends
+function attachArcs(arcs, events, s, headerEnd) {
+  const iL = s.iL;
   const mains = events.filter(e => e.kind === 'note' && !e.grace).sort((a, b) => a.x - b.x);
   const rightEdge = e => Math.max(...e.heads.map(h => h.cx + h.hw));
   const leftEdge = e => Math.min(...e.heads.map(h => h.cx - h.hw));
@@ -1297,23 +1319,18 @@ function analyzeStaffSymbols(s, ctx) {
     if (L && R && L !== R && R.x > L.x) {
       const between = mains.some(e => e !== L && e !== R && e.x > L.x + 0.3 * iL && e.x < R.x - 0.3 * iL && (!e.stem || !L.stem || e.stem.dir === L.stem.dir));
       const common = L.heads.filter(h => R.heads.some(r => r.pos === h.pos));
-      if (!between && common.length && arc.w < 10 * iL) {
+      if (!between && common.length && arc.w < 10 * iL && arc.modelKind !== 'slur') {
         const h = common.reduce((a, b) => (Math.abs(a.cy - arc.yL) < Math.abs(b.cy - arc.yL) ? a : b));
         h.tieStart = true; arc.kind = 'tie'; continue;
       }
       L.slurStart = (L.slurStart || 0) + 1; R.slurStop = (R.slurStop || 0) + 1; arc.kind = 'slur';
     } else if (L && !R && arc.xR > s.right - 2 * iL) {
       const h = L.heads.reduce((a, b) => (Math.abs(a.cy - arc.yL) < Math.abs(b.cy - arc.yL) ? a : b));
-      if (arc.w < 4 * iL) { h.tieStart = true; arc.kind = 'tie'; } else { L.slurStart = (L.slurStart || 0) + 1; arc.kind = 'slur'; }
-    } else if (!L && R && arc.xL < hdr.headerEnd + 2 * iL) {
-      if (arc.w >= 4 * iL) { R.slurStop = (R.slurStop || 0) + 1; arc.kind = 'slur'; } else arc.kind = 'tie';
+      if (arc.modelKind ? arc.modelKind === 'tie' : arc.w < 4 * iL) { h.tieStart = true; arc.kind = 'tie'; } else { L.slurStart = (L.slurStart || 0) + 1; arc.kind = 'slur'; }
+    } else if (!L && R && arc.xL < headerEnd + 2 * iL) {
+      if (arc.modelKind ? arc.modelKind === 'slur' : arc.w >= 4 * iL) { R.slurStop = (R.slurStop || 0) + 1; arc.kind = 'slur'; } else arc.kind = 'tie';
     }
   }
-  for (const c of changes) events.push(c);
-  for (const d of dyns) events.push({ kind: 'dyn', x: d.x, word: d.word, y: d.y });
-  for (const w of wedges) { events.push({ kind: 'wedge', x: w.x0, wtype: w.type, y: w.y }); events.push({ kind: 'wedgeStop', x: w.x1, y: w.y }); }
-  events.sort((a, b) => a.x - b.x);
-  return { heads: validHeads, rests, accs, multis, events, arcs, wedges, dyns, tupletMarks, changes, graces: gEvents };
 }
 
 /* Two voices on one staff: stems up = voice 1, stems down = voice 2, when they sound together */
@@ -1378,7 +1395,7 @@ function applyTuplets(evs, marks, s) {
 }
 
 /* Analyze one rendered page */
-function analyzePage(canvas, textItems, opts) {
+async function analyzePage(canvas, textItems, opts) {
   opts = opts || {};
   let W = canvas.width, H = canvas.height;
   let gray = grayFromCanvas(canvas);
@@ -1434,15 +1451,26 @@ function analyzePage(canvas, textItems, opts) {
   let sysIdx = groupSystems(staves, bin, W);
   staves.forEach(s => {
     s.nearComps = comps.filter(c => c && c.maxX >= s.left - 0.2 * s.iL && c.minX <= s.right + s.iL && c.cy >= s.bandTop && c.cy <= s.bandBottom).sort((a, b) => a.minX - b.minX);
-    s.header = analyzeHeader(s, s.nearComps, lab, W, textItems);
   });
-  sysIdx.forEach(idxs => idxs.forEach((si, k) => {
-    const s = staves[si];
-    s.bars = findBarlines(s, k > 0 ? staves[idxs[k - 1]] : null, k < idxs.length - 1 ? staves[idxs[k + 1]] : null, clean, chr, lab, W, H);
-  }));
   const ctx = { clean, chr, cvr, lab, comps, W, H, textItems, thin };
-  if (window.__debugOMR) result.debug = { thin, clean, W, H };
-  staves.forEach(s => { s.sym = analyzeStaffSymbols(s, ctx); });
+  if (window.__debugOMR) result.debug = { thin, clean, W, H, bin };
+  if (opts.hw) {
+    // handwriting: a trained detector reads the symbols; staves, systems and everything after stay the same
+    for (const s of staves) {
+      const dets = await opts.hw.detect(bin, W, H, s);
+      hwAnalyzeStaff(s, dets);
+      if (opts.onStaff) opts.onStaff();
+    }
+    result.readWith = 'model';
+  } else {
+    staves.forEach(s => { s.header = analyzeHeader(s, s.nearComps, lab, W, textItems); });
+    sysIdx.forEach(idxs => idxs.forEach((si, k) => {
+      const s = staves[si];
+      s.bars = findBarlines(s, k > 0 ? staves[idxs[k - 1]] : null, k < idxs.length - 1 ? staves[idxs[k + 1]] : null, clean, chr, lab, W, H);
+    }));
+    staves.forEach(s => { s.sym = analyzeStaffSymbols(s, ctx); });
+    result.readWith = 'rules';
+  }
   // drop one-line "staves" that carry no music (rules, extender lines…)
   const keep = staves.map(s => !s.oneLine || s.sym.events.filter(e => e.kind === 'note').length >= 2);
   if (keep.some(k => !k)) {
@@ -1784,6 +1812,7 @@ function assembleDocument(fileName, pages) {
     overlays: pages.map(pg => pg.overlay).filter(Boolean)
   });
   doc.features = countFeatures(doc);
+  doc.readWith = pages.some(pg => pg.readWith === 'model') ? 'model' : 'rules';
   return doc;
 }
 function countFeatures(doc) {
@@ -1857,7 +1886,7 @@ function resolvePart(doc, p) {
           const heads = [...e.heads].sort((a, b) => a.pos - b.pos).map(h => {
             const { step, octave } = pitchOf(h.pos, inst.perc ? 'perc' : clef);
             const kk = step + octave; let alter;
-            if (h.acc && !e.grace) { alter = h.acc === 'sharp' ? 1 : h.acc === 'flat' ? -1 : 0; acc[kk] = alter; }
+            if (h.acc && !e.grace) { alter = { sharp: 1, flat: -1, 'double-sharp': 2, 'flat-flat': -2 }[h.acc] || 0; acc[kk] = alter; }
             else alter = kk in acc ? acc[kk] : keyAlter(step, kKey);
             return { step, octave, alter: inst.perc ? 0 : alter, acc: h.acc, tieStart: !!h.tieStart && !e.grace, tieStop: false, _dur: evDur(e) };
           });
@@ -2095,6 +2124,371 @@ function buildMxl(doc) {
 const safeBase = name => name.replace(/\.[^.]+$/, '').replace(/[^\w\- .()]+/g, '_').trim() || 'score';
 
 /* ====================================================================
+   Handwriting model: a trained symbol detector run with ONNX Runtime Web.
+   Train it with pdf-to-flat/training (see README there), then load music_symbols.onnx.
+   ==================================================================== */
+const ORT_VERSION = '1.31.1';
+const ORT_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/`;
+// must match pdf-to-flat/training/classes.py (model class order)
+const HW_CLASSES = [
+  'noteheadFull', 'noteheadHalf', 'noteheadWhole', 'noteheadGrace',
+  'stem', 'beam', 'flag8th', 'flag16th', 'augmentationDot', 'ledgerLine',
+  'restWhole', 'restHalf', 'restQuarter', 'rest8th', 'rest16th', 'multiRest',
+  'sharp', 'flat', 'natural', 'doubleSharp',
+  'gClef', 'fClef', 'cClef', 'percClef',
+  'digit0', 'digit1', 'digit2', 'digit3', 'digit4', 'digit5', 'digit6', 'digit7', 'digit8', 'digit9',
+  'timeSigCommon', 'timeSigCut',
+  'barline', 'repeatDot', 'tie', 'slur', 'crescendo', 'diminuendo',
+  'dynP', 'dynF', 'dynM', 'dynS', 'dynZ'
+];
+const HW_TILE = { w: 1024, h: 320, stride: 896, space: 22 };
+const HW = { session: null, name: null, provider: null, mode: 'auto', conf: 0.3 };
+let ortPromise = null;
+function loadOrt() {
+  if (window.ort) return Promise.resolve(window.ort);
+  if (!ortPromise) ortPromise = new Promise((res, rej) => {
+    const sc = document.createElement('script'); sc.src = ORT_BASE + 'ort.min.js';
+    sc.onload = () => { window.ort.env.wasm.wasmPaths = ORT_BASE; window.ort.env.wasm.numThreads = 1; res(window.ort); };
+    sc.onerror = () => { ortPromise = null; rej(new Error('Could not load ONNX Runtime Web.')); };
+    document.head.appendChild(sc);
+  });
+  return ortPromise;
+}
+async function loadHwModel(bytes, name) {
+  const ort = await loadOrt();
+  let session = null, provider = null, lastErr = null;
+  for (const ep of ['webgpu', 'wasm']) {
+    if (ep === 'webgpu' && !navigator.gpu) continue;
+    try { session = await ort.InferenceSession.create(bytes, { executionProviders: [ep], graphOptimizationLevel: 'all' }); provider = ep; break; } catch (e) { lastErr = e; }
+  }
+  if (!session) throw new Error('The model could not be loaded: ' + ((lastErr && lastErr.message) || lastErr));
+  Object.assign(HW, { session, name, provider, inputName: session.inputNames[0], outputName: session.outputNames[0], checked: false });
+  return HW;
+}
+function nmsDets(dets, thr) {
+  dets.sort((a, b) => b.score - a.score);
+  const keep = [];
+  for (const d of dets) {
+    const dup = keep.some(k => {
+      if (k.cls !== d.cls) return false;
+      const iw = Math.min(k.x1, d.x1) - Math.max(k.x0, d.x0), ih = Math.min(k.y1, d.y1) - Math.max(k.y0, d.y0);
+      if (iw <= 0 || ih <= 0) return false;
+      const inter = iw * ih, a1 = (k.x1 - k.x0) * (k.y1 - k.y0), a2 = (d.x1 - d.x0) * (d.y1 - d.y0);
+      return inter / (a1 + a2 - inter) > thr || inter / Math.min(a1, a2) > 0.75; // tile overlaps can cut a box in two
+    });
+    if (!dup) keep.push(d);
+  }
+  return keep;
+}
+// cut the staff into the same 1024x320 tiles the model was trained on, run it, map boxes back to the page
+const hwDetector = {
+  async detect(bin, W, H, s) {
+    if (!HW.session) throw new Error('No handwriting model is loaded.');
+    const T = HW_TILE, scale = T.space / s.iL, y0 = s.top - 4.5 * s.iL;
+    const stripW = Math.ceil(W * scale), plane = T.w * T.h, nc = HW_CLASSES.length;
+    const data = new Float32Array(3 * plane);
+    const dets = [];
+    for (let tx = 0; ; tx += T.stride) {
+      for (let y = 0; y < T.h; y++) {
+        const py = Math.floor(y0 + y / scale);
+        for (let x = 0; x < T.w; x++) {
+          const px = Math.floor((tx + x) / scale);
+          const v = py >= 0 && py < H && px >= 0 && px < W && bin[py * W + px] ? 0 : 255;
+          const i = y * T.w + x; data[i] = v; data[plane + i] = v; data[2 * plane + i] = v;
+        }
+      }
+      const out = (await HW.session.run({ [HW.inputName]: new window.ort.Tensor('float32', data, [1, 3, T.h, T.w]) }))[HW.outputName];
+      const k = out.dims[out.dims.length - 1], n = out.dims[out.dims.length - 2], o = out.data;
+      if (k !== 5 + nc) throw new Error(`The model outputs ${k - 5} classes; this converter expects ${nc}. Re-export it with export_model.py from this version.`);
+      for (let r = 0; r < n; r++) {
+        const b = r * k, obj = o[b + 4];
+        if (obj < 0.05) continue;
+        let best = 0, bc = -1;
+        for (let c = 0; c < nc; c++) { const v = o[b + 5 + c]; if (v > best) { best = v; bc = c; } }
+        const score = obj * best;
+        if (score < HW.conf) continue;
+        const cx = o[b], cy = o[b + 1], w = o[b + 2], h = o[b + 3];
+        dets.push({ cls: HW_CLASSES[bc], score, x0: (tx + cx - w / 2) / scale, x1: (tx + cx + w / 2) / scale, y0: y0 + (cy - h / 2) / scale, y1: y0 + (cy + h / 2) / scale });
+      }
+      if (tx + T.w >= stripW) break;
+    }
+    return nmsDets(dets, 0.5);
+  }
+};
+
+// turn detector boxes for one staff into the same header / barline / symbol structures the print rules produce
+function hwAnalyzeStaff(s, dets) {
+  const iL = s.iL, mid = s.mid;
+  const D = dets.filter(d => (d.y0 + d.y1) / 2 >= s.bandTop && (d.y0 + d.y1) / 2 <= s.bandBottom && d.x1 >= s.left - iL && d.x0 <= s.right + iL)
+    .map(d => ({ ...d, cx: (d.x0 + d.x1) / 2, cy: (d.y0 + d.y1) / 2, w: d.x1 - d.x0, h: d.y1 - d.y0, used: false }));
+  const byX = (a, b) => a.x0 - b.x0;
+  const of = (...n) => D.filter(d => n.includes(d.cls)).sort(byX);
+  const box = d => ({ minX: d.x0, minY: d.y0, maxX: d.x1, maxY: d.y1, w: d.w, h: d.h, cx: d.cx, cy: d.cy });
+  const posOf = cy => Math.round((s.bottom - cy) / (iL / 2));
+  const ACC = { sharp: 'sharp', flat: 'flat', natural: 'natural', doubleSharp: 'double-sharp' };
+  const headDets = of('noteheadFull', 'noteheadHalf', 'noteheadWhole');
+  const accDets = of('sharp', 'flat', 'natural', 'doubleSharp');
+  const refY = a => (a.cls === 'flat' ? a.y1 - 0.45 * iL : a.cy);
+  const accMatchesHead = a => headDets.some(h => h.x0 > a.x1 - 0.3 * iL && h.x0 - a.x1 < 2.6 * iL && Math.abs(refY(a) - h.cy) <= 0.5 * iL);
+  const clefOf = c => (c.cls === 'gClef' ? 'G2' : c.cls === 'fClef' ? 'F4' : c.cls === 'percClef' ? 'perc' : ((s.bottom - c.cy) / (iL / 2) > 5 ? 'C4' : 'C3'));
+  const digits = D.filter(d => d.cls.startsWith('digit')).sort(byX);
+  const num = list => (list.length ? parseInt([...list].sort(byX).map(d => d.cls.slice(5)).join(''), 10) : null);
+  const timeAt = x0 => {
+    const win = digits.filter(d => !d.used && d.x0 >= x0 - 0.3 * iL && d.x0 <= x0 + 2.6 * iL && d.cy > s.top - 0.8 * iL && d.cy < s.bottom + 0.8 * iL);
+    const top = win.filter(d => d.cy < mid), bot = win.filter(d => d.cy >= mid);
+    if (top.length && bot.length) {
+      const b = num(top), t = num(bot);
+      if ([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15].includes(b) && [2, 4, 8, 16].includes(t)) { win.forEach(d => { d.used = true; }); return { time: { beats: b, beatType: t, symbol: null }, end: Math.max(...win.map(d => d.x1)) }; }
+    }
+    const sym = of('timeSigCommon', 'timeSigCut').find(d => !d.used && d.x0 >= x0 - 0.3 * iL && d.x0 <= x0 + 2.6 * iL);
+    if (sym) { sym.used = true; return { time: sym.cls === 'timeSigCut' ? { beats: 2, beatType: 2, symbol: 'cut' } : { beats: 4, beatType: 4, symbol: 'common' }, end: sym.x1 }; }
+    return null;
+  };
+  // header: clef, key signature, time signature
+  const clefs = of('gClef', 'fClef', 'cClef', 'percClef');
+  const hc = clefs.find(c => c.x0 < s.left + 5 * iL);
+  if (hc) hc.used = true;
+  const clef = hc ? clefOf(hc) : (s.oneLine ? 'perc' : null);
+  let end = hc ? hc.x1 : s.left, keyType = null, keyCount = 0;
+  if (!s.oneLine) for (const a of accDets) {
+    if (a.x0 < end - 0.3 * iL) continue;
+    if (a.x0 - end > 1.8 * iL || accMatchesHead(a)) break;
+    if (a.cls === 'natural' && !keyCount) { end = a.x1; a.used = true; continue; }
+    if ((a.cls !== 'sharp' && a.cls !== 'flat') || (keyType && a.cls !== keyType)) break;
+    keyType = a.cls; keyCount++; end = a.x1; a.used = true;
+    if (keyCount >= 7) break;
+  }
+  const ts = timeAt(end + 0.1 * iL);
+  const headerEnd = Math.max(end, ts ? ts.end : end) + 0.3 * iL;
+  s.header = { clef, fifths: keyType === 'sharp' ? keyCount : keyType === 'flat' ? -keyCount : 0, keyCount, keyType, time: ts ? ts.time : null, clefEnd: hc ? hc.x1 : s.left, keyEnd: end, timeEnd: ts ? ts.end : end, headerEnd, keyComps: [], timeComps: [] };
+  // barlines and repeats
+  const bars = [];
+  for (const b of of('barline')) {
+    if (b.cx < headerEnd - 0.4 * iL) continue;
+    const l = bars[bars.length - 1];
+    if (l && b.x0 - l.x1 <= 1.0 * iL) { l.x1 = Math.max(l.x1, b.x1); l.n++; l.thick = l.thick || b.w > 0.35 * iL; }
+    else bars.push({ x0: b.x0, x1: b.x1, n: 1, thick: b.w > 0.35 * iL, strokes: [] });
+  }
+  const rdots = of('repeatDot');
+  for (const b of bars) {
+    b.x = (b.x0 + b.x1) / 2; b.thick = b.thick || b.n > 1;
+    b.repeatEnd = rdots.some(d => d.cx < b.x0 && d.cx > b.x0 - 1.3 * iL);
+    b.repeatStart = rdots.some(d => d.cx > b.x1 && d.cx < b.x1 + 1.3 * iL);
+  }
+  s.bars = bars;
+  // clef / key / time changes inside the line
+  const changes = [];
+  for (const c of clefs) if (!c.used && c.x0 > headerEnd + 0.3 * iL) { c.used = true; changes.push({ kind: 'clef', x: c.x0, clef: clefOf(c), c: box(c) }); }
+  for (const b of bars) {
+    let x0 = b.x1 + 0.1 * iL;
+    if (!s.oneLine) {
+      const chain = [];
+      for (const a of accDets) {
+        if (a.used || a.x0 < x0 - 0.2 * iL) continue;
+        if (a.x0 - (chain.length ? chain[chain.length - 1].x1 : x0) > 1.6 * iL || accMatchesHead(a)) break;
+        chain.push(a);
+      }
+      let i = 0; while (i < chain.length && chain[i].cls === 'natural') i++;
+      const rest = chain.slice(i);
+      if (chain.length && rest.length <= 7 && !rest.some(a => a.cls !== rest[0].cls || a.cls === 'natural' || a.cls === 'doubleSharp')) {
+        chain.forEach(a => { a.used = true; });
+        changes.push({ kind: 'key', x: b.x1 + 0.1 * iL, fifths: !rest.length ? 0 : rest[0].cls === 'sharp' ? rest.length : -rest.length });
+        x0 = chain[chain.length - 1].x1 + 0.1 * iL;
+      }
+    }
+    const tc = timeAt(x0);
+    if (tc) changes.push({ kind: 'time', x: b.x1 + 0.15 * iL, time: tc.time });
+  }
+  // noteheads, stems, beams, flags
+  const stems = of('stem'), beamDets = of('beam'), flags = of('flag8th', 'flag16th');
+  const stemFor = (h, minLen) => {
+    let best = null, bd = Infinity;
+    for (const st of stems) {
+      const up = Math.abs(st.cx - h.x1) <= 0.45 * iL && st.y1 >= h.cy - 0.7 * iL && h.cy - st.y0 >= minLen;
+      const dn = Math.abs(st.cx - h.x0) <= 0.45 * iL && st.y0 <= h.cy + 0.7 * iL && st.y1 - h.cy >= minLen;
+      if (!up && !dn) continue;
+      const isUp = up && (!dn || Math.abs(st.cx - h.x1) <= Math.abs(st.cx - h.x0));
+      const d = Math.abs(st.cx - (isUp ? h.x1 : h.x0));
+      if (d < bd) { bd = d; best = { x: st.cx, dir: isUp ? 'up' : 'down', len: isUp ? h.cy - st.y0 : st.y1 - h.cy, endY: isUp ? st.y0 : st.y1, det: st }; }
+    }
+    return best;
+  };
+  const beamsOf = st => {
+    const near = beamDets.filter(b => st.x >= b.x0 - 0.4 * iL && st.x <= b.x1 + 0.4 * iL && (st.dir === 'up' ? b.cy >= st.endY - 0.6 * iL && b.cy <= st.endY + 2.8 * iL : b.cy <= st.endY + 0.6 * iL && b.cy >= st.endY - 2.8 * iL));
+    const fl = flags.filter(f => f.x0 >= st.x - 0.4 * iL && f.x0 <= st.x + 0.9 * iL && f.y1 >= Math.min(st.endY, st.endY + (st.dir === 'up' ? 0 : -1.2 * iL)) - 0.5 * iL && f.y0 <= Math.max(st.endY, st.endY + (st.dir === 'up' ? 1.2 * iL : 0)) + 0.5 * iL);
+    const fc = fl.reduce((m, f) => Math.max(m, f.cls === 'flag16th' ? 2 : 1), 0);
+    const levels = []; // beams at the same height (e.g. one beam split into pieces) count once
+    for (const b of near) { const y = b.cy; if (!levels.some(l => Math.abs(l - y) < 0.35 * iL)) levels.push(y); }
+    return { n: Math.min(3, Math.max(levels.length, fc)), list: near };
+  };
+  const heads = headDets.map(d => {
+    const h = { cx: d.cx, cy: d.cy, hw: d.w / 2, hollow: d.cls !== 'noteheadFull', whole: d.cls === 'noteheadWhole', pos: posOf(d.cy), x0: d.x0, x1: d.x1, outerW: d.w };
+    if (!h.whole) { h.stem = stemFor(d, 1.8 * iL); if (h.stem) { const bm = beamsOf(h.stem); h.beams = h.hollow ? 0 : bm.n; h.beamList = bm.list; } }
+    return h;
+  }).filter(h => h.pos >= -14 && h.pos <= 22).sort((a, b) => a.cx - b.cx);
+  // accidentals before noteheads
+  const accs = accDets.filter(a => !a.used).map(a => ({ c: box(a), type: ACC[a.cls], used: false, det: a }));
+  for (const h of heads) {
+    let best = null, bd = Infinity;
+    for (const a of accs) {
+      if (a.used || a.c.maxX > h.x0 + 0.2 * iL || a.c.maxX < h.x0 - 2.4 * iL || Math.abs(refY(a.det) - h.cy) > 0.5 * iL) continue;
+      const d = h.x0 - a.c.maxX; if (d < bd) { bd = d; best = a; }
+    }
+    if (best) { best.used = true; h.acc = best.type; }
+  }
+  // chords → events, dots
+  const events = [];
+  for (const h of heads) {
+    const g = h.stem ? events.find(e => e.stem && e.stem.det === h.stem.det && e.stem.dir === h.stem.dir) : events.find(e => !e.stem && e.hollow === h.hollow && Math.abs(e.x - h.cx) <= 0.6 * iL);
+    if (g) { g.heads.push(h); continue; }
+    const type = h.whole ? 'whole' : h.hollow ? 'half' : (h.stem ? BEAM_TYPE[h.beams || 0] : 'quarter');
+    events.push({ kind: 'note', x: h.cx, heads: [h], stem: h.stem, hollow: h.hollow, type, beams: h.hollow ? 0 : (h.beams || 0), dots: 0, beamList: h.beamList || [] });
+  }
+  const dotDets = of('augmentationDot');
+  const dotsRightOf = (fromX, ys) => {
+    const cand = dotDets.filter(d => !d.used && d.cx > fromX && d.cx < fromX + 1.8 * iL && ys.some(y => Math.abs(d.cy - y) <= 0.8 * iL));
+    const cols = [];
+    for (const d of cand.sort((a, b) => a.cx - b.cx)) { d.used = true; if (!cols.some(x => Math.abs(x - d.cx) < 0.35 * iL)) cols.push(d.cx); }
+    return Math.min(2, cols.length);
+  };
+  for (const e of events) {
+    const right = Math.max(...e.heads.map(h => h.x1));
+    e.dots = dotsRightOf(e.stem && e.stem.dir === 'up' ? Math.max(right, e.stem.x) : right, e.heads.map(h => h.cy));
+    e.x = Math.min(...e.heads.map(h => h.cx));
+  }
+  // grace notes
+  const gEvents = [];
+  for (const d of of('noteheadGrace')) {
+    const g = { cx: d.cx, cy: d.cy, hw: d.w / 2, hh: d.h, hollow: false, pos: posOf(d.cy), x0: d.x0, x1: d.x1 };
+    if (!events.some(e => e.x > g.cx && e.x - g.cx < 4.5 * iL)) continue;
+    g.stem = stemFor(d, 1.0 * iL);
+    const prev = g.stem && gEvents.find(e => e.stem && e.stem.det === g.stem.det);
+    if (prev) { prev.heads.push(g); continue; }
+    const bm = g.stem ? beamsOf(g.stem) : { n: 1, list: [] };
+    gEvents.push({ kind: 'note', grace: true, x: g.cx, heads: [g], stem: g.stem, type: BEAM_TYPE[Math.max(1, bm.n)], beams: Math.max(1, bm.n), beamList: bm.list, dots: 0, hollow: false });
+  }
+  gEvents.forEach((e, i) => { const single = !gEvents.some((o, j) => j !== i && Math.abs(o.x - e.x) < 2.2 * iL); e.slash = single; if (single) e.beams = 0; });
+  events.push(...gEvents);
+  // rests and multi-bar rests
+  const RT = { restWhole: 'whole', restHalf: 'half', restQuarter: 'quarter', rest8th: 'eighth', rest16th: '16th' };
+  const rests = of(...Object.keys(RT)).filter(r => r.cx > headerEnd).map(r => ({ c: box(r), x: r.x0, type: RT[r.cls], dots: dotsRightOf(r.x1, [r.cy]) ? 1 : 0 }));
+  for (const r of rests) events.push({ kind: 'rest', x: r.x, type: r.type, dots: r.dots, c: r.c });
+  const multis = of('multiRest').map(m => {
+    const ds = digits.filter(d => !d.used && d.cy < s.top && d.cx > m.x0 - 0.5 * iL && d.cx < m.x1 + 0.5 * iL);
+    ds.forEach(d => { d.used = true; });
+    const count = num(ds);
+    return { c: box(m), x: m.x0, count: count && count < 400 ? count : null };
+  });
+  for (const mr of multis) events.push({ kind: 'multirest', x: mr.x, count: mr.count });
+  // beams join consecutive notes that share a beam box
+  const noteList = events.filter(e => e.kind === 'note' && e.stem).sort((a, b) => a.x - b.x);
+  for (let i = 0; i < noteList.length; i++) {
+    const a = noteList[i]; if (!a.beams) continue;
+    const b = noteList.slice(i + 1).find(e => e.stem.dir === a.stem.dir && !!e.grace === !!a.grace);
+    if (b && b.beams && a.beamList.some(bm => b.beamList.includes(bm))) a.beamTo = b;
+  }
+  // tuplet numbers: digits near the stem ends / beams of notes, not used by time signatures
+  const tupletMarks = digits.filter(d => !d.used && [3, 5, 6, 7].includes(+d.cls.slice(5))
+    && noteList.some(e => Math.abs(e.x - d.cx) < 4 * iL && Math.abs(e.stem.endY - d.cy) < 2.5 * iL)).map(d => ({ x: d.cx, y: d.cy, n: +d.cls.slice(5) }));
+  // dynamics: letters next to each other form a word
+  const dyns = [];
+  let grp = [];
+  const flush = () => {
+    if (!grp.length) return;
+    const word = grp.map(d => d.cls.slice(3).toLowerCase()).join('');
+    if (DYN_RX.test(word)) dyns.push({ x: grp[0].x0, y: grp[0].cy, word });
+    grp = [];
+  };
+  for (const d of of('dynP', 'dynF', 'dynM', 'dynS', 'dynZ')) {
+    const l = grp[grp.length - 1];
+    if (l && (d.x0 - l.x1 > 0.7 * iL || Math.abs(d.cy - l.cy) > 1.0 * iL)) flush();
+    grp.push(d);
+  }
+  flush();
+  // ties, slurs, hairpins
+  const arcs = of('tie', 'slur').map(d => ({ xL: d.x0, yL: d.cy, xR: d.x1, yR: d.cy, w: d.w, bulge: 'down', modelKind: d.cls }));
+  attachArcs(arcs, events, s, headerEnd);
+  const wedges = of('crescendo', 'diminuendo').map(d => ({ type: d.cls, x0: d.x0, x1: d.x1, y: d.cy }));
+  for (const c of changes) events.push(c);
+  for (const d of dyns) events.push({ kind: 'dyn', x: d.x, word: d.word, y: d.y });
+  for (const w of wedges) { events.push({ kind: 'wedge', x: w.x0, wtype: w.type, y: w.y }); events.push({ kind: 'wedgeStop', x: w.x1, y: w.y }); }
+  events.sort((a, b) => a.x - b.x);
+  s.sym = { heads, rests, accs, multis, events, arcs, wedges, dyns, tupletMarks, changes, graces: gEvents, dets: D };
+}
+
+// read a file with the print rules; when they fail and a model is loaded, try the model and keep the better result
+function flaggedShare(doc) {
+  validateDoc(doc);
+  let total = 0;
+  for (const p of doc.parts) for (const m of p.measures) if (!m.padded && m.staffEvents.some(l => l.some(e => e.kind === 'note'))) total++;
+  return total ? doc.flagged / total : 1;
+}
+async function readWithBestMethod(read) {
+  const hwOn = !!HW.session;
+  if (hwOn && HW.mode === 'always') return await read(hwDetector, 'handwriting model: ');
+  const doc = await read(null, '');
+  const share = flaggedShare(doc);
+  if (!hwOn || HW.mode === 'never' || share <= 0.2) {
+    if (!hwOn && share > 0.4) doc.warnings.unshift('Many bars don\'t add up. If this is handwritten, load a handwriting model (see "Handwritten music" above) and convert it again.');
+    return doc;
+  }
+  const doc2 = await read(hwDetector, 'handwriting model: ');
+  const share2 = flaggedShare(doc2);
+  if (share2 < share) {
+    doc2.warnings.unshift(`Read with the handwriting model: ${Math.round((1 - share2) * 100)}% of bars add up, compared with ${Math.round((1 - share) * 100)}% with the print rules.`);
+    return doc2;
+  }
+  doc.warnings.unshift(`The handwriting model was also tried but didn't do better (${Math.round((1 - share2) * 100)}% of bars add up), so the print-rules result is shown.`);
+  return doc;
+}
+
+// keep the loaded model in this browser (IndexedDB) so it doesn't need reloading every visit
+function idb(op, key, val) {
+  return new Promise(res => {
+    try {
+      const r = indexedDB.open('pdf-to-flat', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onerror = () => res(null);
+      r.onsuccess = () => {
+        try {
+          const tx = r.result.transaction('kv', op === 'get' ? 'readonly' : 'readwrite');
+          const st = tx.objectStore('kv');
+          const q = op === 'get' ? st.get(key) : op === 'del' ? st.delete(key) : st.put(val, key);
+          q.onsuccess = () => res(q.result ?? null); q.onerror = () => res(null);
+        } catch (_) { res(null); }
+      };
+    } catch (_) { res(null); }
+  });
+}
+function renderHwStatus(msg) {
+  const el = document.getElementById('hwStatus'); if (!el) return;
+  el.textContent = msg || (HW.session ? `Model loaded: ${HW.name} (${HW.provider === 'webgpu' ? 'GPU' : 'CPU'})` : 'No handwriting model loaded.');
+  document.getElementById('hwForget').classList.toggle('hidden', !HW.session);
+}
+async function initHwPanel() {
+  try { const m = localStorage.getItem('hwMode'); if (m) HW.mode = m; } catch (_) {}
+  const sel = document.getElementById('hwMode'); sel.value = HW.mode;
+  sel.addEventListener('change', () => { HW.mode = sel.value; try { localStorage.setItem('hwMode', HW.mode); } catch (_) {} });
+  document.getElementById('hwFile').addEventListener('change', async e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    renderHwStatus('Loading model…');
+    try {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      await loadHwModel(bytes, f.name);
+      await idb('put', 'hwModel', { name: f.name, bytes });
+      renderHwStatus(); showToast('Handwriting model loaded');
+    } catch (err) { console.error(err); HW.session = null; renderHwStatus(err.message); }
+  });
+  document.getElementById('hwForget').addEventListener('click', async () => { HW.session = null; HW.name = null; await idb('del', 'hwModel'); renderHwStatus(); });
+  const saved = await idb('get', 'hwModel');
+  if (saved && saved.bytes) {
+    renderHwStatus('Loading saved model…');
+    try { await loadHwModel(saved.bytes, saved.name); renderHwStatus(); } catch (err) { renderHwStatus('The saved model could not be loaded: ' + err.message); }
+  } else renderHwStatus();
+}
+
+/* ====================================================================
    File processing
    ==================================================================== */
 const TARGET_IL = 22, MAX_PIXELS = 11e6;
@@ -2125,7 +2519,7 @@ function quickInterline(canvas, scan) {
   if (f.singles.length) return oneLineInterline(b, vr, W, f.singles[0], sp.thick);
   return sp.iL >= 5 && sp.iL <= 60 ? sp.iL : 0;
 }
-async function processPdf(file, onPage) {
+async function processPdf(file, onPage, hw) {
   const buf = await file.arrayBuffer();
   const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
   const pages = [];
@@ -2148,7 +2542,7 @@ async function processPdf(file, onPage) {
       return { str: it.str, x: tx[4], baseline: tx[5], y: tx[5] - fh, w: it.width * scale, h: fh };
     });
     await nextFrame();
-    const res = analyzePage(canvas, items, { scan });
+    const res = await analyzePage(canvas, items, { scan, hw });
     res.textLines = groupTextLines(items);
     delete res.canvas;
     pages.push(res);
@@ -2168,7 +2562,7 @@ function drawScaled(src, w, h, scale) {
   const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(src, 0, 0, c.width, c.height); return c;
 }
-function analyzeImageSource(src, w, h, textItems, opts) {
+async function analyzeImageSource(src, w, h, textItems, opts) {
   opts = opts || { scan: true };
   let scale = Math.min(1, Math.sqrt(MAX_PIXELS / (w * h)));
   let c = drawScaled(src, w, h, scale);
@@ -2177,7 +2571,7 @@ function analyzeImageSource(src, w, h, textItems, opts) {
     const s2 = Math.min(scale * TARGET_IL / iL, Math.sqrt(MAX_PIXELS / (w * h)), 5);
     if (Math.abs(s2 - scale) / scale > 0.12) { const f = s2 / scale; scale = s2; c = drawScaled(src, w, h, scale); textItems = (textItems || []).map(t => ({ ...t, x: t.x * f, y: t.y * f, baseline: t.baseline * f, w: t.w * f, h: t.h * f })); }
   }
-  const res = analyzePage(c, textItems || [], opts);
+  const res = await analyzePage(c, textItems || [], opts);
   res.textLines = groupTextLines(textItems || []);
   delete res.canvas;
   return res;
@@ -2195,15 +2589,15 @@ async function processDroppedFiles(fileList) {
     setProgress(label(''), fi / files.length);
     await nextFrame();
     try {
-      let pages;
-      if (ext === 'pdf') {
-        if (!window.pdfjsLib) throw new Error('The PDF library failed to load. Check your connection and reload.');
-        pages = await processPdf(file, (p, n) => setProgress(label(`page ${p} of ${n}`), (fi + p / n) / files.length));
-      } else if (['png', 'jpg', 'jpeg'].includes(ext)) {
-        const img = await imageFromFile(file);
-        pages = [analyzeImageSource(img, img.naturalWidth, img.naturalHeight, [], { scan: true })];
-      } else throw new Error('Unsupported file type. Use PDF, PNG or JPG.');
-      convertedItems.unshift(assembleDocument(file.name, pages));
+      if (!['pdf', 'png', 'jpg', 'jpeg'].includes(ext)) throw new Error('Unsupported file type. Use PDF, PNG or JPG.');
+      if (ext === 'pdf' && !window.pdfjsLib) throw new Error('The PDF library failed to load. Check your connection and reload.');
+      const read = async (hw, tag) => {
+        let pages;
+        if (ext === 'pdf') pages = await processPdf(file, (p, n) => setProgress(label(`${tag}page ${p} of ${n}`), (fi + p / n) / files.length), hw);
+        else { const img = await imageFromFile(file); pages = [await analyzeImageSource(img, img.naturalWidth, img.naturalHeight, [], { scan: true, hw })]; }
+        return assembleDocument(file.name, pages);
+      };
+      convertedItems.unshift(await readWithBestMethod(read));
     } catch (err) {
       console.error(err);
       convertedItems.unshift({ fileName: file.name, error: err.message || String(err) });
@@ -2292,7 +2686,7 @@ function renderConvertedList() {
             <label class="flex items-center gap-1.5" title="Tick if the PDF is a score in C: transposing instruments are already written at sounding pitch"><input type="checkbox" data-act="concert" data-idx="${idx}" ${doc.concert ? 'checked' : ''} /> Score is in concert pitch</label>
             ${doc.pickup ? '<span class="text-slate-400">Pickup bar detected</span>' : ''}
           </div>
-          <div class="flex flex-wrap gap-1.5 text-[11px]">${featureChips(doc.features)}</div>
+          <div class="flex flex-wrap gap-1.5 text-[11px]">${doc.readWith === 'model' ? '<span class="px-2 py-0.5 rounded-md bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/30">read with handwriting model</span>' : ''}${featureChips(doc.features)}</div>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
           <button type="button" data-act="preview" data-idx="${idx}" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium transition">Preview</button>
@@ -2587,13 +2981,15 @@ window.addEventListener('DOMContentLoaded', () => {
   ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('drop-active'); }));
   ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('drop-active'); }));
   dropZone.addEventListener('drop', e => { if (e.dataTransfer?.files) processDroppedFiles(e.dataTransfer.files); });
+  initHwPanel();
   const cards = document.getElementById('convertedCards');
   cards.addEventListener('click', onCardEvent); cards.addEventListener('change', onCardEvent);
   document.getElementById('btnTrySample').addEventListener('click', async () => {
     setProgress('Recognizing sample pages…', 0.3); await nextFrame();
     try {
       buildTemplates();
-      const pages = samplePages().map(P => analyzeImageSource(P.c, P.c.width, P.c.height, P.text, { scan: false }));
+      const pages = [];
+      for (const P of samplePages()) pages.push(await analyzeImageSource(P.c, P.c.width, P.c.height, P.text, { scan: false }));
       const doc = assembleDocument('Sample_March.png', pages);
       convertedItems.unshift(doc);
       window.__lastDoc = doc;

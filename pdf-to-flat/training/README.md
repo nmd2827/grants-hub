@@ -48,6 +48,17 @@ Kaggle allows about 30 GPU hours a week. One run should fit comfortably, but the
    ```
 5. Upload `copyist_dataset/` as a Kaggle Dataset, and also upload stage 1's `best_ckpt.pth`. In the notebook, set `COPYIST_DIR`, `BASE_CKPT` and `EPOCHS = 40`, then run it again. `test_report.txt` now includes the copyist's held-out pages, which is the number that matters for you.
 
+## Stage 3: use the model in the converter
+
+Open the converter, click **Load model (.onnx)** under "Handwritten music" and pick `music_symbols.onnx`. The fp16 file also works and is half the size. The model is stored in your browser, so you only load it once.
+
+"Use it" has three settings:
+- **When the print rules fail** (default): files are read with the print rules first. If more than 20% of bars don't add up, the file is read again with the model, and the result with more correct bars is kept. The card says which one was used.
+- **Always**: every file is read with the model. Use this for your copyist's parts.
+- **Never**: the model is ignored.
+
+The model runs on the GPU through WebGPU where the browser supports it, otherwise on the CPU through WASM.
+
 ## What was tested here, and what wasn't
 
 Tested in this repository's cloud session, which has no GPU and couldn't install PyTorch:
@@ -57,6 +68,11 @@ Tested in this repository's cloud session, which has no GPU and couldn't install
 - The staff finder: it found all 68 of 68 staves on 10 MUSCIMA++ pages.
 - Copyist tiling, pre-labelling and finalize, run with a stand-in ONNX model.
 - The accuracy report: its self-check gives 100%, and the ONNX path was also exercised.
+- The converter's model path, tested in headless Chromium with the real ONNX Runtime Web 1.31.1 and a stand-in model:
+  - the model loads and is still there after a page reload;
+  - the 1024×320 tiles map back to the correct page positions;
+  - all three modes work;
+  - perfect detections derived from the test pages produce exactly the same music as the print rules on all 16 bars, covering clefs, key/time/clef changes, tuplets, grace notes, ties, slurs, dynamics, hairpins, two voices and one-line percussion.
 
 **Not tested yet:** the YOLOX training, evaluation and export cells. They need a GPU and PyTorch, so the first Kaggle run is their first real run. If a cell fails, send me the error from the notebook log.
 
